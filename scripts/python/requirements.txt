@@ -1,0 +1,6 @@
+# Python: 3.13.7
+# torch的CUDA版本需自行安装
+
+torch==2.13.0+cu130
+numpy==2.5.1
+onnx==1.22.0
