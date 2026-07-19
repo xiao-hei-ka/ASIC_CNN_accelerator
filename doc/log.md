@@ -7,3 +7,7 @@
 - 查看并记录python库、vivado版本。
 - 下载mnist。
 - 了解git使换行符保持为LF的方法
+## 20260719
+- 熟悉并打通github的push流程
+- 撰写readme概述部分 
+- 捡起python：字符串、列表、元组、条件语句、条件表达式、字典
