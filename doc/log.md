@@ -6,8 +6,12 @@
 - 建立git仓库，目录：`doc/ rtl/ tb/ sw/ models/ scripts/`。
 - 查看并记录python库、vivado版本。
 - 下载mnist。
-- 了解git使换行符保持为LF的方法
+- 了解git使换行符保持为LF的方法。
 ## 20260719
-- 熟悉并打通github的push流程
-- 撰写readme概述部分 
-- 捡起python：字符串、列表、元组、条件语句、条件表达式、字典
+- 熟悉并打通github的push流程。
+- 撰写readme概述部分。
+- 捡起python：字符串、列表、元组、条件语句、条件表达式、字典。
+## 20260720
+- 捡起python：input()、while、函数、打包与解包。
+- 整理kria开发板中的安装程序，以便后续顺利开发。
+- 了解pytorch训练LeNet-5的流程。
