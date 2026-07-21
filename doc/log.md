@@ -15,3 +15,6 @@
 - 捡起python：input()、while、函数、打包与解包。
 - 整理kria开发板中的安装程序，以便后续顺利开发。
 - 了解pytorch训练LeNet-5的流程。
+## 20260721
+- 捡起python：类、模块与导入、反射
+- python上训练LeNet-5模型
