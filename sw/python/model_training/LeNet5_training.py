@@ -10,7 +10,9 @@ from torch.ao.quantization.observer import (
     MovingAverageMinMaxObserver,
     MovingAveragePerChannelMinMaxObserver,
 )
-
+import os
+import json
+import numpy as np
 
 # ============================================================
 # 第一部分：数据加载与预处理
@@ -416,9 +418,6 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
     1. 读JSON知道每层的形状、缩放参数
     2. 读.bin文件拿到权重数组，直接memcpy到DDR
     """
-    import os
-    import json
-    import numpy as np
     
     # 创建输出目录
     os.makedirs(output_dir, exist_ok=True)
@@ -540,8 +539,9 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
         weight_filename = f'{name.replace(".", "_")}_weight.bin'
         bias_filename = f'{name.replace(".", "_")}_bias.bin'
         
-        weight_int8.tofile(os.path.join(output_dir, weight_filename))
-        bias_int32.tofile(os.path.join(output_dir, bias_filename))
+        weight_int8.astype('<i1').tofile(os.path.join(output_dir, weight_filename))
+        bias_int32.astype('<i4').tofile(os.path.join(output_dir, bias_filename))
+
         
         print(f"  已保存: {weight_filename} ({weight_int8.nbytes} bytes)")
         print(f"  已保存: {bias_filename} ({bias_int32.nbytes} bytes)")
@@ -646,7 +646,7 @@ def main():
     # ===== 统一的模型输出目录 =====
     # 所有生成的模型文件都放在 data/models/ 下
     # 这样在项目根目录写 .gitignore 忽略 data/ 即可避免模型占用仓库空间
-    MODELS_DIR = 'data/models'
+    MODELS_DIR = '../../../models'
     os.makedirs(MODELS_DIR, exist_ok=True)
 
     # 各文件的完整路径

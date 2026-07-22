@@ -101,3 +101,6 @@ Thumbs.db
 ~$*.docx
 ~$*.xlsx
 *.tmp
+
+# 模型文件目录
+models/
