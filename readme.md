@@ -92,15 +92,19 @@
 在训练中得到的weight与bias，均为浮点数格式。而在NPU上将浮点数运算近似转化为整数运算，可以在只牺牲一点点精度的情况下，大幅提高推理速度，增加带宽，减小功耗。用离散的整数值近似表示连续小数值的过程叫做量化。
 
 真实的$weight$、$input$、$bias$值与其在硬件中的整数值具有如下对应关系：
+
 $$
 x_{r} = \mathrm{s_{x}} \times (x - Z_x)
 $$
+
 $$
 w_{r} = \mathrm{s_{w}} \times (w - Z_w)
 $$
+
 $$
 b_{r} = \mathrm{s_{x}} \times \mathrm{s_{w}} \times b
 $$
+
 其中：
 - $x_{r}、w_{r}、b_{r}$ 分别表示该层神经网络真实input与weight。
 - $x、w、b$ 表示分别表示该层神经网络位于硬件中参与运算的输入值与权重。
@@ -140,6 +144,7 @@ M_{norm}=\frac{\mathrm{s_x} \times \mathrm{s_w} }{\mathrm{s_{x(i+1)}}}\times2^{s
 $$
 
 则有：
+
 $$
 M_{norm}\times2^{31}=\frac{\mathrm{s_x} \times \mathrm{s_w} }{\mathrm{s_{x(i+1)}}}\times2^{s}\in[2^{30},2^{31})
 $$
@@ -179,6 +184,7 @@ zero_point（零点）
 
 #### 5.激活函数输出
 激活函数对硬件中整数进行[0,255]限位，即：
+
 $$
 x_{i+1} = \text{clamp}\Bigg( \frac{M_0\Big( \sum_i x_iw_i + b'_{i} \Big)}{2^{s'+31}}+Z_{x(i+1)},\ \ Z_{x(i+1)},\ 255 \Bigg)
 $$
