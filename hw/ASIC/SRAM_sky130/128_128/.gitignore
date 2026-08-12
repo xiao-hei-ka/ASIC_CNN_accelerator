@@ -1,0 +1,3 @@
+*.lib
+config_sram_128.py
+sram_1rw_128x128.v
