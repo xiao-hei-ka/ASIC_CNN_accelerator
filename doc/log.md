@@ -69,3 +69,9 @@
 - 整理从top到ddr2sram的整条逻辑链条内的sv文件。
 ## 20260810
 - 初步写简单的testbench，复习axi4总线。
+## 20260811
+- 写了一下简历OVO
+## 20260812
+- 写testbench的控制面AXI4-lite master部分
+## 20260813
+- 写tb_cmd、tb_cmd

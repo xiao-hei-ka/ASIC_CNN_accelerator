@@ -6,8 +6,8 @@ module core#
 	parameter integer C_M_AXI_DATA_WIDTH = 128
 )
 (
-    input   logic                               clk                             ,
-    input   logic                               rst_n                           ,
+    input   logic                               gating_clk                      ,//门控时钟
+    input   logic                               core_rst_n_2                    ,//软复位延时2，真正被子模块使用的复位信号
 
     input   logic                               para_load                       ,//本次执行是否加载参数
     input   logic   [31:0]                      udmabuf_in_base_addr            ,//udmabuf基地址
@@ -24,8 +24,6 @@ module core#
     input   logic                               cpu_men_result_buffer1_valid    ,//内存的结果缓冲区1是否有效
     input   logic                               cpu_men_result_buffer2_valid    ,//内存的结果缓冲区2是否有效
     output  logic   [31:0]                      error_code                      ,//错误码
-    input   logic                               gating_clk                      ,//门控时钟
-    input   logic                               core_rst_n_2                    ,//软复位延时2，真正被子模块使用的复位信号
 
     input   wire                                M_AXI4_ACLK                     ,
     input   wire                                M_AXI4_ARESETN                  ,
@@ -58,11 +56,12 @@ module core#
 enum logic [7:0]
 {
     MAIN_IDLE,
-    MAIN_TEST
+    MAIN_TEST,
+    MAIN_TEST2
 } main_cs, main_ns;
 
 //sram_mgr
-logic           ddr2sram_cmd_wr_en;//高有效
+logic           ddr2sram_cmd_wr_en;//低有效
 logic [17:0]    ddr2sram_cmd_din;
 logic           ddr2sram_cmd_full;
 logic           para_r_busy;
@@ -97,25 +96,32 @@ always_comb begin
             main_ns = MAIN_TEST;
         end
         MAIN_TEST:begin
-            main_ns = MAIN_TEST;
+            main_ns = MAIN_TEST2;
+        end
+        MAIN_TEST2:begin
+            main_ns = MAIN_TEST2;
         end
     endcase
 end
 //三段
 always_ff @(posedge gating_clk)begin
     if(core_rst_n_2 == 1'b0)begin
-        ddr2sram_cmd_wr_en  <= '0;
+        ddr2sram_cmd_wr_en  <= '1;
         ddr2sram_cmd_din    <= '0;
     end
     else begin
         case(main_cs)
             MAIN_IDLE:begin
-                ddr2sram_cmd_wr_en  <= 1'b0;
+                ddr2sram_cmd_wr_en  <= 1'b1;
                 ddr2sram_cmd_din    <= 18'd0;
             end
             MAIN_TEST:begin
-                ddr2sram_cmd_wr_en  <= 1'b1;
+                ddr2sram_cmd_wr_en  <= 1'b0;
                 ddr2sram_cmd_din    <= {2'd0, 1'b0, 9'd0, 6'd0};
+            end
+            MAIN_TEST2:begin
+                ddr2sram_cmd_wr_en  <= 1'b1;
+                ddr2sram_cmd_din    <= 18'd0;
             end
         endcase            
     end

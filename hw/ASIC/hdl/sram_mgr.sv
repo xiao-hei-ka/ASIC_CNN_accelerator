@@ -66,7 +66,7 @@ module sram_mgr #
 );
 
 localparam ddr2sram_ID = C_M_AXI_ID_WIDTH'(0);//所有从DDR到sram的写动作的id都为0
-localparam r_leftMove_per_burst = 8'd8;////每次读事件地址握手突发事务后地址移动次数，用（2^突发事务数）表示.每次突发传输256个字
+localparam r_leftMove_per_burst = 8'd12;////每次读事件地址握手突发事务后地址移动次数，每次突发传输256个字
 
 enum logic [7:0]
 {
@@ -206,10 +206,10 @@ end
 //三段
 always_ff @(posedge clk) begin
     if(rst_n ==1'b0) begin
-        ddr2sram_cmd_rd_en           <= '0;    
-        ddr2sram_addr_routing_wr_en  <= '0;
+        ddr2sram_cmd_rd_en           <= '1;    
+        ddr2sram_addr_routing_wr_en  <= '1;
         ddr2sram_addr_routing_din    <= '0;
-        ddr2sram_data_routing_wr_en  <= '0;
+        ddr2sram_data_routing_wr_en  <= '1;
         ddr2sram_data_routing_din    <= '0;
         para_r_addr_busy             <= '0;
         para_r_data_busy             <= '0;
@@ -240,15 +240,15 @@ always_ff @(posedge clk) begin
         case(ddr2sram_cs)
             D2S_IDLE: begin
                 if(ddr2sram_cmd_empty == 0) begin
-                    ddr2sram_cmd_rd_en <= 1'b1;
+                    ddr2sram_cmd_rd_en <= 1'b0;
                 end
             end
             D2S_RD_CMD: begin
                 if(ddr2sram_cmd_empty == 1) begin
-                    ddr2sram_cmd_rd_en <= 1'b0;
+                    ddr2sram_cmd_rd_en <= 1'b1;
                 end
                 else begin
-                    ddr2sram_cmd_rd_en <= 1'b1;
+                    ddr2sram_cmd_rd_en <= 1'b0;
                 end
                 if(ddr2sram_cmd_dout[1:0] == 2'd0) begin
                     para_r_addr_busy <= 1'b1;
@@ -262,9 +262,9 @@ always_ff @(posedge clk) begin
                     ping2_r_addr_busy <= 1'b1;
                     ping2_r_data_busy <= 1'b1;
                 end
-                ddr2sram_addr_routing_wr_en <= 1'b1;
+                ddr2sram_addr_routing_wr_en <= 1'b0;
                 ddr2sram_addr_routing_din   <= ddr2sram_cmd_dout;
-                ddr2sram_data_routing_wr_en <= 1'b1;
+                ddr2sram_data_routing_wr_en <= 1'b0;
                 ddr2sram_data_routing_din   <= ddr2sram_cmd_dout;
             end
         endcase
@@ -317,12 +317,12 @@ always_ff @(posedge clk) begin
         r_addr_burst_times          <= '0;
         r_addr_finished             <= '0;
         r_addr_pointer              <= R_ADDR_PARA;
-        ddr2sram_addr_routing_rd_en <= '0;
+        ddr2sram_addr_routing_rd_en <= '1;
         addr_base_addr              <= '0;
         core_cmd_error_addr         <= '0;
     end
     else begin
-        ddr2sram_addr_routing_rd_en <= 1'b0;
+        ddr2sram_addr_routing_rd_en <= 1'b1;
         M_AXI4_ARVALID              <= 1'b0;
         r_addr_finished             <= 1'b0;
         core_cmd_error_addr         <= 1'b0;
@@ -330,7 +330,7 @@ always_ff @(posedge clk) begin
             R_ADDR_IDLE:begin
                 r_addr_burst_times_already  <= 8'd0;
                 if(ddr2sram_addr_routing_empty == 0) begin
-                    ddr2sram_addr_routing_rd_en <= 1'b1;
+                    ddr2sram_addr_routing_rd_en <= 1'b0;
                 end
             end
             R_ADDR_RD_CMD:begin
@@ -412,7 +412,7 @@ always_ff @(posedge clk) begin
         r_data_burst_times          <= '0;
         r_data_finished             <= '0;
         r_data_pointer              <= '0;
-        ddr2sram_data_routing_rd_en <= '0;
+        ddr2sram_data_routing_rd_en <= '1;
         para_addr                   <= '0;
         para_cs                     <= 1'b1;
         para_wr                     <= 1'b1;
@@ -421,7 +421,7 @@ always_ff @(posedge clk) begin
         core_cmd_error_data         <= '0;
     end
     else begin
-        ddr2sram_data_routing_rd_en <= 1'b0;
+        ddr2sram_data_routing_rd_en <= 1'b1;
         M_AXI4_RREADY               <= 1'b0;
         r_data_finished             <= 1'b0;
         para_cs                     <= 1'b1;
@@ -432,7 +432,7 @@ always_ff @(posedge clk) begin
                 r_data_beat_times_already   <= 8'd0;
                 r_data_burst_times_already  <= 8'd0;
                 if(ddr2sram_data_routing_empty == 0) begin
-                    ddr2sram_data_routing_rd_en <= 1'b1;
+                    ddr2sram_data_routing_rd_en <= 1'b0;
                 end
             end
             R_DATA_RD_CMD:begin

@@ -5,8 +5,8 @@ module sync_fifo #(
 )(
     input logic clk,
     input logic rst_n,
-    input logic wr_en,
-    input logic rd_en,
+    input logic wr_en, //低有效
+    input logic rd_en, //低有效
     input logic [WIDTH-1:0] din,
     output logic [WIDTH-1:0] dout,
     output logic full,
@@ -31,11 +31,11 @@ generate
                 rd_ptr<= '0;
             end
             else begin
-                if(wr_en == 1'b1 && full != 1'b1) begin
+                if(wr_en == 1'b0 && full != 1'b1) begin
                     mem[wr_ptr[ADDR_W-1 : 0]] <= din;
                     wr_ptr <= wr_ptr + (ADDR_W+1)'(1);
                 end
-                if(rd_en == 1'b1 && empty != 1'b1) begin
+                if(rd_en == 1'b0 && empty != 1'b1) begin
                     dout <= mem[rd_ptr[ADDR_W-1 : 0]];
                     rd_ptr <= rd_ptr + (ADDR_W+1)'(1);
                 end
@@ -62,11 +62,11 @@ generate
                 rd_ptr<= '0;
             end
             else begin
-                if(wr_en == 1'b1 && full != 1'b1) begin
+                if(wr_en == 1'b0 && full != 1'b1) begin
                     mem[wr_ptr[ADDR_W-1 : 0]] <= din;
                     wr_ptr <= wr_ptr + (ADDR_W+1)'(1);
                 end
-                if(rd_en == 1'b1 && empty != 1'b1) begin
+                if(rd_en == 1'b0 && empty != 1'b1) begin
                     dout <= mem[rd_ptr[ADDR_W-1 : 0]];
                     rd_ptr <= rd_ptr + (ADDR_W+1)'(1);
                 end

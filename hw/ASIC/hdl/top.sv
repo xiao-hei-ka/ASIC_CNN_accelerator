@@ -54,7 +54,7 @@ module top#
     output  wire    [3 : 0]                     M_AXI4_AWREGION                 ,   // 未用到：区域标识（可选）
     //W
     output  wire    [C_M_AXI_DATA_WIDTH-1 : 0]  M_AXI4_WDATA                    ,
-    output  wire    [C_M_AXI_DATA_WIDTH/8-1 : 0] M_AXI4_WSTRB                   ,   // 未用到：写 strobe（写数据必备，缺失则写无效）
+    output  wire    [C_M_AXI_DATA_WIDTH/8-1 : 0] M_AXI4_WSTRB                   ,   //写 strobe（写数据必备，缺失则写无效）
     output  wire                                M_AXI4_WLAST                    ,
     input   wire                                M_AXI4_WREADY                   ,
     output  wire                                M_AXI4_WVALID                   ,
@@ -86,7 +86,11 @@ module top#
 
 );
 
-logic clk;
+//rst mgr
+logic rst_n_cmd_comb;//控制面复位组合逻辑
+logic rst_n_cmd_sync;//控制面复位（同步释放）
+logic rst_n_core_comb;//业务模块、数据面复位组合逻辑
+logic rst_n_core_sync;//业务模块、数据面复位（同步释放）
 
 //axi4_lite_parser <-> core 连线
 logic                               para_load                       ;//本次执行是否加载参数
@@ -107,15 +111,22 @@ logic   [31:0]                      error_code                      ;//错误码
 logic                               gating_clk                      ;//门控时钟
 logic                               core_rst_n_2                    ;//软复位延时2，真正被子模块使用的复位信号
 
-assign clk = M_AXI4_ACLK;
-assign rst_n_comb = rst_n & S_AXI4_LITE_ARESETN & M_AXI4_ARESETN;
+assign rst_n_cmd_comb = rst_n & S_AXI4_LITE_ARESETN;
+assign rst_n_core_comb = rst_n & M_AXI4_ARESETN;
 
-reset_synchronizer u_reset_synchronizer
+reset_synchronizer u_reset_synchronizer_cmd
 (
-    .clk(clk),
-    .rst_n(rst_n_comb)
-    .rst_n_sync(rst_n_sync)
-)
+    .clk        (S_AXI4_LITE_ACLK   ),
+    .rst_n      (rst_n_cmd_comb     ),
+    .rst_n_sync (rst_n_cmd_sync     )
+);
+
+reset_synchronizer u_reset_synchronizer_core
+(
+    .clk        (M_AXI4_ACLK     ),
+    .rst_n      (rst_n_core_comb ),
+    .rst_n_sync (rst_n_core_sync )
+);
 
 axi4_lite_parser #
 (
@@ -125,11 +136,11 @@ axi4_lite_parser #
 )
 u_axi4_lite_parser
 (
-    .clk                            (clk),
-    .rst_n                          (rst_n_sync),
+    .clk                            (M_AXI4_ACLK),
+    .rst_n                          (rst_n_core_sync),
 
     .S_AXI4_LITE_ACLK               (S_AXI4_LITE_ACLK),
-    .S_AXI4_LITE_ARESETN            (S_AXI4_LITE_ARESETN),
+    .S_AXI4_LITE_ARESETN            (rst_n_cmd_sync),
     .S_AXI4_LITE_AWADDR             (S_AXI4_LITE_AWADDR),
     .S_AXI4_LITE_AWPROT             (S_AXI4_LITE_AWPROT),
     .S_AXI4_LITE_AWVALID            (S_AXI4_LITE_AWVALID),
@@ -177,8 +188,8 @@ core #
 )
 u_core
 (
-    .clk                            (gating_clk),
-    .rst_n                          (core_rst_n_2),
+    .gating_clk                     (gating_clk),
+    .core_rst_n_2                   (core_rst_n_2),
     .para_load                      (para_load),
     .udmabuf_in_base_addr           (udmabuf_in_base_addr),
     .cpu_men_in_buffer1_valid       (cpu_men_in_buffer1_valid),
@@ -194,8 +205,6 @@ u_core
     .cpu_men_result_buffer1_valid   (cpu_men_result_buffer1_valid),
     .cpu_men_result_buffer2_valid   (cpu_men_result_buffer2_valid),
     .error_code                     (error_code),
-    .gating_clk                     (gating_clk),
-    .core_rst_n_2                   (core_rst_n_2),
 
     .M_AXI4_ACLK                    (M_AXI4_ACLK),
     .M_AXI4_ARESETN                 (M_AXI4_ARESETN),
