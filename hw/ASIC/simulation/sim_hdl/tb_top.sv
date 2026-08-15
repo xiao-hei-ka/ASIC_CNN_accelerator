@@ -86,7 +86,6 @@ logic                                   tb_cmd_out_fifo_rd  = 1'b1; // 低有效
 logic   [TB_CMD_WIDTH-1 : 0]            tb_cmd_out_fifo_dout;
 logic                                   tb_cmd_out_fifo_empty;
 logic   [2 : 0]                         tb_cmd_err_state;            // bit0=路由所用fifo满 bit1=B错误 bit2=R错误或返回fifo满
-logic                                   tb_cmd_cmd_in_error;
 logic                                   tb_cmd_wr_busy;
 logic                                   tb_cmd_rd_busy;
 
@@ -134,7 +133,6 @@ u_tb_cmd
     .tb_cmd_out_fifo_dout           (tb_cmd_out_fifo_dout       ),
     .tb_cmd_out_fifo_empty          (tb_cmd_out_fifo_empty      ),
     .err_state                      (tb_cmd_err_state           ),
-    .cmd_in_error                   (tb_cmd_cmd_in_error        ),
 
     // AXI4-Lite master -> top 的 lite slave
     .m_axi_awaddr                   (S_AXI4_LITE_AWADDR         ),
@@ -243,6 +241,70 @@ u_top
     .M_AXI4_RREADY                  (M_AXI4_RREADY              ),
     .M_AXI4_RRESP                   (M_AXI4_RRESP               ),
     .M_AXI4_RVALID                  (M_AXI4_RVALID              )
+);
+
+//tb_ram：模拟 CPU 侧 RAM（2MB），对接 DUT 的 AXI4 主端
+tb_ram #
+(
+    .S_AXI_ID_WIDTH     (6                     ),
+    .S_AXI_RID_WIDTH    (C_M_AXI_ID_WIDTH      ),
+    .S_AXI_ADDR_WIDTH   (C_M_AXI_ADDR_WIDTH    ),
+    .S_AXI_DATA_WIDTH   (C_M_AXI_DATA_WIDTH    ),
+    .MEM_SIZE_BYTES     (2 * 1024 * 1024       )
+)
+u_tb_ram
+(
+    .clk                            (M_AXI4_ACLK                ),
+    .rst_n                          (M_AXI4_ARESETN             ),
+
+    //写地址通道 AW
+    .s_axi_awaddr                   (M_AXI4_AWADDR              ),
+    .s_axi_awlen                    (M_AXI4_AWLEN               ),
+    .s_axi_awsize                   (M_AXI4_AWSIZE              ),
+    .s_axi_awburst                  (M_AXI4_AWBURST             ),
+    .s_axi_awlock                   (M_AXI4_AWLOCK              ),
+    .s_axi_awcache                  (M_AXI4_AWCACHE             ),
+    .s_axi_awprot                   (M_AXI4_AWPROT              ),
+    .s_axi_awqos                    (M_AXI4_AWQOS               ),
+    .s_axi_awregion                 (M_AXI4_AWREGION            ),
+    .s_axi_awid                     (M_AXI4_AWID                ),
+    .s_axi_awvalid                  (M_AXI4_AWVALID             ),
+    .s_axi_awready                  (M_AXI4_AWREADY             ),
+
+    //写数据通道 W
+    .s_axi_wdata                    (M_AXI4_WDATA               ),
+    .s_axi_wstrb                    (M_AXI4_WSTRB               ),
+    .s_axi_wlast                    (M_AXI4_WLAST               ),
+    .s_axi_wvalid                   (M_AXI4_WVALID              ),
+    .s_axi_wready                   (M_AXI4_WREADY              ),
+
+    //写响应通道 B
+    .s_axi_bid                      (M_AXI4_BID                 ),
+    .s_axi_bresp                    (M_AXI4_BRESP               ),
+    .s_axi_bvalid                   (M_AXI4_BVALID              ),
+    .s_axi_bready                   (M_AXI4_BREADY              ),
+
+    //读地址通道 AR
+    .s_axi_araddr                   (M_AXI4_ARADDR              ),
+    .s_axi_arlen                    (M_AXI4_ARLEN               ),
+    .s_axi_arsize                   (M_AXI4_ARSIZE              ),
+    .s_axi_arburst                  (M_AXI4_ARBURST             ),
+    .s_axi_arlock                   (M_AXI4_ARLOCK              ),
+    .s_axi_arcache                  (M_AXI4_ARCACHE             ),
+    .s_axi_arprot                   (M_AXI4_ARPROT              ),
+    .s_axi_arqos                    (M_AXI4_ARQOS               ),
+    .s_axi_arregion                 (M_AXI4_ARREGION            ),
+    .s_axi_arid                     (M_AXI4_ARID                ),
+    .s_axi_arvalid                  (M_AXI4_ARVALID             ),
+    .s_axi_arready                  (M_AXI4_ARREADY             ),
+
+    //读数据通道 R
+    .s_axi_rdata                    (M_AXI4_RDATA               ),
+    .s_axi_rid                      (M_AXI4_RID                 ),
+    .s_axi_rlast                    (M_AXI4_RLAST               ),
+    .s_axi_rresp                    (M_AXI4_RRESP               ),
+    .s_axi_rvalid                   (M_AXI4_RVALID              ),
+    .s_axi_rready                   (M_AXI4_RREADY              )
 );
 
 

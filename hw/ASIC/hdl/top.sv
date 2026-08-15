@@ -114,6 +114,25 @@ logic                               core_rst_n_2                    ;//软复位
 assign rst_n_cmd_comb = rst_n & S_AXI4_LITE_ARESETN;
 assign rst_n_core_comb = rst_n & M_AXI4_ARESETN;
 
+//================ 未使用的 AXI4 侧带信号：固定默认值 ================
+// 当前仅实装读通道（128bit INCR 突发），侧带信号无任何逻辑驱动会悬空为 X；
+// 按 AXI4 规范语义给出确定性默认值，避免后续接入写通道/新从端时被 X 污染
+assign M_AXI4_AWPROT   = '0;                                 // 普通数据访问
+assign M_AXI4_AWSIZE   = 3'b100;                            // 16 字节/拍（128bit 总线）
+assign M_AXI4_AWBURST  = 2'b01;                             // INCR
+assign M_AXI4_AWLOCK   = '0;
+assign M_AXI4_AWCACHE  = '0;
+assign M_AXI4_AWQOS    = '0;
+assign M_AXI4_AWREGION = '0;
+assign M_AXI4_WSTRB    = {C_M_AXI_DATA_WIDTH/8{1'b1}};      // 全字节有效
+assign M_AXI4_ARSIZE   = 3'b100;                            // 16 字节/拍（128bit 总线）
+assign M_AXI4_ARBURST  = 2'b01;                             // INCR
+assign M_AXI4_ARLOCK   = '0;
+assign M_AXI4_ARCACHE  = '0;
+assign M_AXI4_ARPROT   = '0;
+assign M_AXI4_ARQOS    = '0;
+assign M_AXI4_ARREGION = '0;
+
 reset_synchronizer u_reset_synchronizer_cmd
 (
     .clk        (S_AXI4_LITE_ACLK   ),

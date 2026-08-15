@@ -96,7 +96,10 @@ always_comb begin
             main_ns = MAIN_TEST;
         end
         MAIN_TEST:begin
-            main_ns = MAIN_TEST2;
+            // 命令 FIFO 满时停留等待，写成功后再进入 TEST2，避免命令被静默丢弃
+            if(ddr2sram_cmd_full == 1'b0) begin
+                main_ns = MAIN_TEST2;
+            end
         end
         MAIN_TEST2:begin
             main_ns = MAIN_TEST2;

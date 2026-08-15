@@ -74,4 +74,8 @@
 ## 20260812
 - 写testbench的控制面AXI4-lite master部分
 ## 20260813
-- 写tb_cmd、tb_cmd
+- 写tb_top、tb_cmd
+## 20260814
+- 写tb_top、用deepseek生成tb_ram，理解并修改。
+## 20260815
+- 开始探索使用VCS。

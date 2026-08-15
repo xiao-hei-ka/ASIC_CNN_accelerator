@@ -1,5 +1,5 @@
 `timescale 1 ns / 1 ps
-
+`include def_file.vh
 module sram_mgr #
 (
     parameter integer C_M_AXI_ID_WIDTH	    = 6,
@@ -163,6 +163,19 @@ assign ping2_r_busy = {ping2_r_addr_busy, ping2_r_data_busy} != 2'b00;
 
 assign core_cmd_error = core_cmd_error_addr | core_cmd_error_data;
 
+//================ 写通道（AW/W/B）暂未实装：固定安全电平 ================
+// 当前仅实装 DDR->SRAM 读路径。写通道输出若不驱动会悬空为 X，
+// 从端（tb_ram）的写事务判断会被 X 污染，故先给出确定性电平。
+// TODO: 实装写通道（DDR->SRAM 写路径）时删除本组赋值
+assign M_AXI4_AWADDR  = '0;
+assign M_AXI4_AWLEN   = '0;
+assign M_AXI4_AWVALID = 1'b0;
+assign M_AXI4_AWID    = '0;
+assign M_AXI4_WDATA   = '0;
+assign M_AXI4_WLAST   = 1'b0;
+assign M_AXI4_WVALID  = 1'b0;
+assign M_AXI4_BREADY  = 1'b1;   // 随时可接收（当前不会有）B 响应
+
 
 //报error
 always_ff @(posedge clk)begin
@@ -192,12 +205,16 @@ always_comb begin
     ddr2sram_ns = ddr2sram_cs;
     case(ddr2sram_cs)
         D2S_IDLE: begin
-            if(ddr2sram_cmd_empty == 0) begin
+            if(ddr2sram_cmd_empty == 1'b0) begin
                 ddr2sram_ns = D2S_RD_CMD;
             end
         end
         D2S_RD_CMD: begin
-            if(ddr2sram_cmd_empty == 1) begin
+            // 命令 FIFO 排空且两个路由 FIFO 都有空间时才回 IDLE；
+            // 若路由 FIFO 满，停留本状态等待（dout 保持当前命令，不丢不重）
+            if((ddr2sram_cmd_empty == 1'b1) &&
+               (ddr2sram_addr_routing_full == 1'b0) &&
+               (ddr2sram_data_routing_full == 1'b0)) begin
                 ddr2sram_ns = D2S_IDLE;
             end
         end
@@ -239,33 +256,43 @@ always_ff @(posedge clk) begin
         end
         case(ddr2sram_cs)
             D2S_IDLE: begin
-                if(ddr2sram_cmd_empty == 0) begin
+                if(ddr2sram_cmd_empty == 1'b0) begin
                     ddr2sram_cmd_rd_en <= 1'b0;
                 end
             end
             D2S_RD_CMD: begin
-                if(ddr2sram_cmd_empty == 1) begin
-                    ddr2sram_cmd_rd_en <= 1'b1;
+                if((ddr2sram_addr_routing_full == 1'b1) || (ddr2sram_data_routing_full == 1'b1)) begin
+                    // 路由 FIFO 满：本拍不转发、不弹出命令，dout 保持当前命令，下拍重试
+                    ddr2sram_cmd_rd_en          <= 1'b1;
+                    ddr2sram_addr_routing_wr_en <= 1'b1;
+                    ddr2sram_data_routing_wr_en <= 1'b1;
                 end
                 else begin
-                    ddr2sram_cmd_rd_en <= 1'b0;
+                    // 转发当前命令：置忙 + 写入两个路由 FIFO
+                    if(ddr2sram_cmd_dout[1:0] == 2'd0) begin
+                        para_r_addr_busy <= 1'b1;
+                        para_r_data_busy <= 1'b1;
+                    end
+                    else if(ddr2sram_cmd_dout[1:0] == 2'd1) begin
+                        ping1_r_addr_busy <= 1'b1;
+                        ping1_r_data_busy <= 1'b1;
+                    end
+                    else if(ddr2sram_cmd_dout[1:0] == 2'd2) begin
+                        ping2_r_addr_busy <= 1'b1;
+                        ping2_r_data_busy <= 1'b1;
+                    end
+                    ddr2sram_addr_routing_wr_en <= 1'b0;
+                    ddr2sram_addr_routing_din   <= ddr2sram_cmd_dout;
+                    ddr2sram_data_routing_wr_en <= 1'b0;
+                    ddr2sram_data_routing_din   <= ddr2sram_cmd_dout;
+                    // 弹出下一条命令
+                    if(ddr2sram_cmd_empty == 1'b1) begin
+                        ddr2sram_cmd_rd_en <= 1'b1;
+                    end
+                    else begin
+                        ddr2sram_cmd_rd_en <= 1'b0;
+                    end
                 end
-                if(ddr2sram_cmd_dout[1:0] == 2'd0) begin
-                    para_r_addr_busy <= 1'b1;
-                    para_r_data_busy <= 1'b1;
-                end
-                else if(ddr2sram_cmd_dout[1:0] == 2'd1) begin
-                    ping1_r_addr_busy <= 1'b1;
-                    ping1_r_data_busy <= 1'b1;
-                end
-                else if(ddr2sram_cmd_dout[1:0] == 2'd2) begin
-                    ping2_r_addr_busy <= 1'b1;
-                    ping2_r_data_busy <= 1'b1;
-                end
-                ddr2sram_addr_routing_wr_en <= 1'b0;
-                ddr2sram_addr_routing_din   <= ddr2sram_cmd_dout;
-                ddr2sram_data_routing_wr_en <= 1'b0;
-                ddr2sram_data_routing_din   <= ddr2sram_cmd_dout;
             end
         endcase
     end
@@ -471,7 +498,14 @@ always_ff @(posedge clk) begin
     end
 end
 `ifdef SIMULATION
-assert property (@(posedge clk) (r_data_beat_times_already == 8'd255) |-> (M_AXI4_RLAST == 1'b1));
+property p_full_burst_256_beats;
+    @(posedge clk) disable iff (!rst_n)
+    ((r_data_cs == R_DATA_RD_RCV) && M_AXI4_RVALID && M_AXI4_RREADY && M_AXI4_RLAST &&
+     (r_data_burst_times_already < (r_data_burst_times - 1)))
+    |->
+    (r_data_beat_times_already == 8'd255);
+endproperty
+assert property (p_full_burst_256_beats);
 `endif
 
 
