@@ -1,5 +1,5 @@
 `timescale 1 ns / 1 ps
-`include def_file.vh
+`include "def_file.vh"
 module sram_mgr #
 (
     parameter integer C_M_AXI_ID_WIDTH	    = 6,

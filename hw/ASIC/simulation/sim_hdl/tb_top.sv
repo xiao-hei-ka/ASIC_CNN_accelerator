@@ -307,7 +307,15 @@ u_tb_ram
     .s_axi_rready                   (M_AXI4_RREADY              )
 );
 
+initial begin
+    $fsdbDumpfile("wave.fsdb");   // 波形文件名
+    $fsdbDumpvars(0, tb_top);     // 0 = 记录 tb_top 及以下所有层次的全部信号
+end
 
-
+initial begin
+    #1_000_000;   // timescale=1ns下为1ms
+    $display("TB_TIMEOUT: simulation finished by timeout at %t", $time);
+    $finish;
+end
 
 endmodule

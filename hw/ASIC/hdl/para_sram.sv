@@ -34,7 +34,7 @@ always_ff @(posedge clk)begin//mux
 end
 
 generate
-    for(int i = 0; i<SRAM_CNT; i++)begin:para_sram
+    for(genvar i = 0; i<SRAM_CNT; i++)begin:para_sram
         sram_1rw_256x128 para (
             .clk0      (clk),
             .csb0      (para_cs_final[i]),
