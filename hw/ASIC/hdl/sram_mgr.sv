@@ -438,7 +438,7 @@ always_ff @(posedge clk) begin
         r_data_burst_times_already  <= '0;
         r_data_burst_times          <= '0;
         r_data_finished             <= '0;
-        r_data_pointer              <= '0;
+        r_data_pointer              <= R_DATA_PARA;
         ddr2sram_data_routing_rd_en <= '1;
         para_addr                   <= '0;
         para_cs                     <= 1'b1;
@@ -512,11 +512,11 @@ assert property (p_full_burst_256_beats);
 
 
 
-sync_fifo ddr2sram_cmd #(
+sync_fifo #(
     .WIDTH      (DDR2SRAM_CMD_FIFO_WIDTH),
     .DEPTH      (DDR2SRAM_CMD_FIFO_DEPTH)
 )
-(
+ddr2sram_cmd(
     .clk    (clk),
     .rst_n  (rst_n),
     .wr_en  (ddr2sram_cmd_wr_en ),
@@ -527,11 +527,11 @@ sync_fifo ddr2sram_cmd #(
     .empty  (ddr2sram_cmd_empty )
 );
 
-sync_fifo ddr2sram_addr_routing #(
+sync_fifo #(
     .WIDTH      (DDR2SRAM_CMD_FIFO_WIDTH),
     .DEPTH      (DDR2SRAM_CMD_FIFO_DEPTH)
 )
-(
+ddr2sram_addr_routing(
     .clk    (clk),
     .rst_n  (rst_n),
     .wr_en  (ddr2sram_addr_routing_wr_en ),
@@ -542,11 +542,11 @@ sync_fifo ddr2sram_addr_routing #(
     .empty  (ddr2sram_addr_routing_empty )
 );
 
-sync_fifo ddr2sram_data_routing #(
+sync_fifo #(
     .WIDTH      (DDR2SRAM_CMD_FIFO_WIDTH),
     .DEPTH      (DDR2SRAM_CMD_FIFO_DEPTH)
 )
-(
+ddr2sram_data_routing(
     .clk    (clk),
     .rst_n  (rst_n),
     .wr_en  (ddr2sram_data_routing_wr_en ),

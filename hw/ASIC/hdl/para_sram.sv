@@ -13,7 +13,7 @@ module para_sram
 localparam SRAM_CNT = 13;
 
 logic [127:0] para_dout [0:SRAM_CNT-1];// 输出数据
-logic spare_q;//冗余列输出，不接逻辑，单纯放在这防止综合器错误优化sram仿真模型
+logic [SRAM_CNT-1 : 0] spare_q;//冗余列输出，不接逻辑，单纯放在这防止综合器错误优化sram仿真模型
 logic [SRAM_CNT-1 : 0] para_cs_final;//最终落实到单片SRAM的片选
 logic [7 : 0] para_addr_final;//最终落实到单片SRAM的ADDR
 
@@ -42,7 +42,7 @@ generate
             .spare_wen0(1'b0),
             .addr0     ({1'b0,para_addr_final}),
             .din0      ({1'b0, para_din}),
-            .dout0     ({spare_q, para_dout[i]})
+            .dout0     ({spare_q[i], para_dout[i]})
         );
     end
 endgenerate

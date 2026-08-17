@@ -44,8 +44,8 @@ module top#
     output  wire    [7 : 0]                     M_AXI4_AWLEN                    ,
     input   wire                                M_AXI4_AWREADY                  ,
     output  wire                                M_AXI4_AWVALID                  ,
-    output  wire    [5:0]                       M_AXI4_AWID                     ,
-    output  wire    [5:0]                       M_AXI4_AWPROT                   ,
+    output  wire    [C_M_AXI_ID_WIDTH-1 : 0]    M_AXI4_AWID                     ,
+    output  wire    [2:0]                       M_AXI4_AWPROT                   ,
     output  wire    [2 : 0]                     M_AXI4_AWSIZE                   ,   // 未用到：每次传输的字节数
     output  wire    [1 : 0]                     M_AXI4_AWBURST                  ,   // 未用到：突发类型 FIXED/INCR/WRAP
     output  wire    [1 : 0]                     M_AXI4_AWLOCK                   ,   // 未用到：锁类型（AXI4 规范为 2bit）
@@ -68,7 +68,7 @@ module top#
     output  wire    [7 : 0]                     M_AXI4_ARLEN                    ,
     input   wire                                M_AXI4_ARREADY                  ,
     output  wire                                M_AXI4_ARVALID                  ,
-    output  wire    [5:0]                       M_AXI4_ARID                     ,
+    output  wire    [C_M_AXI_ID_WIDTH-1 : 0]    M_AXI4_ARID                     ,
     output  wire    [2 : 0]                     M_AXI4_ARSIZE                   ,   // 未用到：每次传输的字节数
     output  wire    [1 : 0]                     M_AXI4_ARBURST                  ,   // 未用到：突发类型 FIXED/INCR/WRAP
     output  wire    [1 : 0]                     M_AXI4_ARLOCK                   ,   // 未用到：锁类型（AXI4 规范为 2bit）

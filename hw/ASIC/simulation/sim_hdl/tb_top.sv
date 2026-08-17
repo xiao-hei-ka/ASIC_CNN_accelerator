@@ -6,7 +6,7 @@ parameter integer DATA_WIDTH            = 32;
 parameter integer REG_COUNT             = 5;
 localparam integer ADDR_WIDTH           = (($clog2((DATA_WIDTH/8) * REG_COUNT) < 1) ? 1 : $clog2((DATA_WIDTH/8) * REG_COUNT));
 
-parameter integer C_M_AXI_ID_WIDTH      = 2;
+parameter integer C_M_AXI_ID_WIDTH      = 6;
 parameter integer C_M_AXI_ADDR_WIDTH    = 32;
 parameter integer C_M_AXI_DATA_WIDTH    = 128;
 
@@ -42,8 +42,8 @@ logic   [C_M_AXI_ADDR_WIDTH-1 : 0]      M_AXI4_AWADDR               ;
 logic   [7 : 0]                         M_AXI4_AWLEN                ;
 logic                                   M_AXI4_AWREADY              ;
 logic                                   M_AXI4_AWVALID              ;
-logic   [5:0]                           M_AXI4_AWID                 ;
-logic   [5:0]                           M_AXI4_AWPROT               ;
+logic   [C_M_AXI_ID_WIDTH-1:0]          M_AXI4_AWID                 ;
+logic   [2:0]                           M_AXI4_AWPROT               ;
 logic   [2 : 0]                         M_AXI4_AWSIZE               ;
 logic   [1 : 0]                         M_AXI4_AWBURST              ;
 logic   [1 : 0]                         M_AXI4_AWLOCK               ;
@@ -63,7 +63,7 @@ logic   [C_M_AXI_ADDR_WIDTH-1 : 0]      M_AXI4_ARADDR               ;
 logic   [7 : 0]                         M_AXI4_ARLEN                ;
 logic                                   M_AXI4_ARREADY              ;
 logic                                   M_AXI4_ARVALID              ;
-logic   [5:0]                           M_AXI4_ARID                 ;
+logic   [C_M_AXI_ID_WIDTH-1 : 0]        M_AXI4_ARID                 ;
 logic   [2 : 0]                         M_AXI4_ARSIZE               ;
 logic   [1 : 0]                         M_AXI4_ARBURST              ;
 logic   [1 : 0]                         M_AXI4_ARLOCK               ;
@@ -246,8 +246,7 @@ u_top
 //tb_ram：模拟 CPU 侧 RAM（2MB），对接 DUT 的 AXI4 主端
 tb_ram #
 (
-    .S_AXI_ID_WIDTH     (6                     ),
-    .S_AXI_RID_WIDTH    (C_M_AXI_ID_WIDTH      ),
+    .S_AXI_ID_WIDTH     (C_M_AXI_ID_WIDTH      ),
     .S_AXI_ADDR_WIDTH   (C_M_AXI_ADDR_WIDTH    ),
     .S_AXI_DATA_WIDTH   (C_M_AXI_DATA_WIDTH    ),
     .MEM_SIZE_BYTES     (2 * 1024 * 1024       )

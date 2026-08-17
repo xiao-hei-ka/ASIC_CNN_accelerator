@@ -69,19 +69,22 @@ compile: $(WORK_DIR)
 	$(VERDI_HOME)/share/PLI/VCS/LINUX64/pli.a \
 	+incdir+$(INC_ABS) \
 	$(SRAM_ABS) $(RTL_ABS) $(TB_ABS) \
-	-top $(TOP) -j8 -l compile.log -o $(SIM_BIN)
+	-top $(TOP) -l compile.log -o $(SIM_BIN)
 
 run: compile
 	cd $(WORK_DIR) && ./$(SIM_BIN) -l run.log
 
 flist: $(WORK_DIR)
-	@echo "+incdir+$(INC_ABS)" > $(WORK_DIR)/filelist.f
+	@echo "-sverilog"          > $(WORK_DIR)/filelist.f
+	@echo "+v2k"              >> $(WORK_DIR)/filelist.f
+	@echo "+incdir+$(INC_ABS)" >> $(WORK_DIR)/filelist.f
 	@for f in $(RTL_ABS) $(TB_ABS) $(SRAM_ABS); do echo $$f >> $(WORK_DIR)/filelist.f; done
 	@echo "已生成 $(WORK_DIR)/filelist.f，内容："
 	@cat $(WORK_DIR)/filelist.f
 
 verdi: flist
-	cd $(WORK_DIR) && $(VERDI_HOME)/bin/verdi -f filelist.f -top $(TOP) -ssf wave.fsdb &
+	cd $(WORK_DIR) && $(VERDI_HOME)/bin/verdi -sverilog +v2k \
+	-f filelist.f -top $(TOP) -ssf wave.fsdb &
 
 clean:
 	rm -rf $(WORK_DIR)

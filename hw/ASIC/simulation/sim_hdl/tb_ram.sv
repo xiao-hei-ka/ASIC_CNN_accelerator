@@ -25,8 +25,7 @@
 //     - 每拍固定 16 字节（忽略 arsize/awsize），行索引 = 拍地址[DATA_BYTES_W +: MEM_INDEX_W]
 //======================================================================
 module tb_ram #(
-    parameter int S_AXI_ID_WIDTH    = 6,                // AWID/ARID 输入位宽，与 top.sv M_AXI4_AWID/ARID（固定6bit）对齐
-    parameter int S_AXI_RID_WIDTH   = 6,                // BID/RID 输出位宽，对应 top.sv 的参数 C_M_AXI_ID_WIDTH
+    parameter int S_AXI_ID_WIDTH    = 6,
     parameter int S_AXI_ADDR_WIDTH  = 32,
     parameter int S_AXI_DATA_WIDTH  = 128,
     parameter int MEM_SIZE_BYTES    = 2 * 1024 * 1024,  // 模拟 CPU RAM 大小：2MB
@@ -58,7 +57,7 @@ module tb_ram #(
     output logic                                s_axi_wready,
 
     //================ 写响应通道 B ================
-    output logic [S_AXI_RID_WIDTH-1:0]          s_axi_bid,
+    output logic [S_AXI_ID_WIDTH-1:0]          s_axi_bid,
     output logic [1:0]                          s_axi_bresp,
     output logic                                s_axi_bvalid,
     input  logic                                s_axi_bready,
@@ -79,7 +78,7 @@ module tb_ram #(
 
     //================ 读数据通道 R ================
     output logic [S_AXI_DATA_WIDTH-1:0]         s_axi_rdata,
-    output logic [S_AXI_RID_WIDTH-1:0]          s_axi_rid,
+    output logic [S_AXI_ID_WIDTH-1:0]          s_axi_rid,
     output logic                                s_axi_rlast,
     output logic [1:0]                          s_axi_rresp,
     output logic                                s_axi_rvalid,
@@ -130,44 +129,44 @@ enum logic [1:0] {
 
 //================ 内部信号 ================
 // 读事务队列（AR 连续入队，R 按序出队）
-rd_req_t                          rdq_mem [RD_QUEUE_DEPTH];
-logic [RDQ_PTR_W-1:0]             rdq_head            ;
-logic [RDQ_PTR_W-1:0]             rdq_tail            ;
-logic [RDQ_PTR_W:0]               rdq_cnt             ;
+rd_req_t                          rdq_mem [RD_QUEUE_DEPTH]       ;
+logic [RDQ_PTR_W-1:0]             rdq_head                       ;
+logic [RDQ_PTR_W-1:0]             rdq_tail                       ;
+logic [RDQ_PTR_W:0]               rdq_cnt                        ;
 
 // 写事务队列（AW 连续入队，W/B 按序出队）
-wr_req_t                          wrq_mem [WR_QUEUE_DEPTH];
-logic [WRQ_PTR_W-1:0]             wrq_head            ;
-logic [WRQ_PTR_W-1:0]             wrq_tail            ;
-logic [WRQ_PTR_W:0]               wrq_cnt             ;
+wr_req_t                          wrq_mem [WR_QUEUE_DEPTH]       ;
+logic [WRQ_PTR_W-1:0]             wrq_head                       ;
+logic [WRQ_PTR_W-1:0]             wrq_tail                       ;
+logic [WRQ_PTR_W:0]               wrq_cnt                        ;
 
 // 当前读写事务（从队列头装载）
-rd_req_t                          rd_cur              ;
-wr_req_t                          wr_cur              ;
-logic [7:0]                       rd_beat_cnt         ;//当前读突发已返回节拍数
-logic [7:0]                       wr_beat_cnt         ;//当前写突发已接收节拍数
+rd_req_t                          rd_cur                         ;
+wr_req_t                          wr_cur                         ;
+logic [7:0]                       rd_beat_cnt                    ;//当前读突发已返回节拍数
+logic [7:0]                       wr_beat_cnt                    ;//当前写突发已接收节拍数
 
 // 握手接受/装载组合标志
-logic                             aw_accept           ;//AW 握手成功
-logic                             w_last_hsk          ;//W 最后一拍握手成功
-logic                             b_hsk               ;//B 握手成功
-logic                             wr_load             ;//从写队列装载当前写事务
-logic                             ar_accept           ;//AR 握手成功
-logic                             r_last_hsk          ;//R 最后一拍握手成功
-logic                             rd_load             ;//从读队列装载当前读事务
+logic                             aw_accept                      ;//AW 握手成功
+logic                             w_last_hsk                     ;//W 最后一拍握手成功
+logic                             b_hsk                          ;//B 握手成功
+logic                             wr_load                        ;//从写队列装载当前写事务
+logic                             ar_accept                      ;//AR 握手成功
+logic                             r_last_hsk                     ;//R 最后一拍握手成功
+logic                             rd_load                        ;//从读队列装载当前读事务
 
 // 越界检测结果（在地址握手拍冻结，随事务入队）
-logic                             aw_oob              ;
-logic                             ar_oob              ;
+logic                             aw_oob                         ;
+logic                             ar_oob                         ;
 
 // 内存数组：2MB，128bit 一行
-logic [S_AXI_DATA_WIDTH-1:0]      mem [MEM_DEPTH]     ;
+logic [S_AXI_DATA_WIDTH-1:0]      mem [MEM_DEPTH] = '{default:'0};
 
 // 组合计算：当前拍字节地址 / 存储行索引
-logic [S_AXI_ADDR_WIDTH-1:0]      wr_beat_addr        ;
-logic [S_AXI_ADDR_WIDTH-1:0]      rd_beat_addr        ;
-logic [MEM_INDEX_W-1:0]           wr_mem_index        ;
-logic [MEM_INDEX_W-1:0]           rd_mem_index        ;
+logic [S_AXI_ADDR_WIDTH-1:0]      wr_beat_addr                   ;
+logic [S_AXI_ADDR_WIDTH-1:0]      rd_beat_addr                   ;
+logic [MEM_INDEX_W-1:0]           wr_mem_index                   ;
+logic [MEM_INDEX_W-1:0]           rd_mem_index                   ;
 
 //================ 地址计算辅助函数 ================
 // 突发内第 beat 拍（从 0 计）的字节地址：start_addr + beat * DATA_BYTES
@@ -209,7 +208,7 @@ assign s_axi_awready = (wrq_cnt < WR_QUEUE_DEPTH);
 assign s_axi_wready  = (wr_cs == WR_RCV);
 assign s_axi_bvalid  = (wr_cs == WR_RESP);
 assign s_axi_bresp   = wr_cur.oob ? RESP_SLVERR : RESP_OKAY;
-assign s_axi_bid     = S_AXI_RID_WIDTH'(wr_cur.id);
+assign s_axi_bid     = S_AXI_ID_WIDTH'(wr_cur.id);
 
 //---- 读通道（从端）----
 // AR 仅受读队列深度限制，独立于 R 数据进度连续接收（地址/数据握手并行）
@@ -217,7 +216,7 @@ assign s_axi_arready = (rdq_cnt < RD_QUEUE_DEPTH);
 assign s_axi_rvalid  = (rd_cs == RD_SEND);
 assign s_axi_rlast   = (rd_cs == RD_SEND) && (rd_beat_cnt == rd_cur.len);
 assign s_axi_rresp   = rd_cur.oob ? RESP_SLVERR : RESP_OKAY;
-assign s_axi_rid     = S_AXI_RID_WIDTH'(rd_cur.id);
+assign s_axi_rid     = S_AXI_ID_WIDTH'(rd_cur.id);
 assign s_axi_rdata   = rd_cur.oob ? '0 : mem[rd_mem_index];
 
 //---- 内部节拍地址 / 存储行索引 ----
@@ -421,13 +420,6 @@ always_ff @(posedge clk) begin
             default: begin
             end
         endcase
-    end
-end
-
-//================ 内存初始化 ================
-initial begin
-    for (int i = 0; i < MEM_DEPTH; i++) begin
-        mem[i] = '0;
     end
 end
 

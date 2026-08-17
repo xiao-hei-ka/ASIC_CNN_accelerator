@@ -124,14 +124,14 @@ cdc # (
     .data_r_core        (data_r_core)
 );
 
-axi4_frame_parser u_axi4_frame_parser#
+axi4_frame_parser #
 (
     //axi4-lite
 	.DATA_WIDTH(DATA_WIDTH),
 	.REG_COUNT (REG_COUNT ),
 	.ADDR_WIDTH(ADDR_WIDTH)
 )
-(
+u_axi4_frame_parser(
     .clk                         (clk                         )    ,
     .rst_n                       (rst_n                       )    ,
     .ctrl_w_core                 (ctrl_w_core                 )    ,
