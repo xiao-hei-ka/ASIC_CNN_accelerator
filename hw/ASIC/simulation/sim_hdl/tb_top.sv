@@ -92,6 +92,47 @@ logic                                   tb_cmd_rd_busy;
 assign S_AXI4_LITE_AWPROT = 3'b000;
 assign S_AXI4_LITE_ARPROT = 3'b000;
 
+
+task axi4_lite_wcmd(input logic [7:0] addr, input logic [31:0] data);
+    wait(tb_cmd_in_fifo_full == 1'b0);
+    @(posedge S_AXI4_LITE_ACLK);
+    tb_cmd_in_fifo_din[7:0]     <= 8'h00;   // 0=写命令
+    tb_cmd_in_fifo_din[15:8]    <= addr;
+    tb_cmd_in_fifo_din[47:16]   <= data;
+    tb_cmd_in_fifo_wr           <= 1'b0;
+    @(posedge S_AXI4_LITE_ACLK);
+    tb_cmd_in_fifo_wr           <= 1'b1;
+    // 等命令经 FIFO→路由→wr_issued 递增后再判忙，避免 busy 尚未拉高就穿过
+    wait(tb_cmd_wr_busy == 1'b1);
+    wait(tb_cmd_wr_busy == 1'b0);
+endtask
+
+task axi4_lite_rcmd(input logic [7:0] addr, output logic [31:0] data);
+    wait(tb_cmd_in_fifo_full == 1'b0);
+    @(posedge S_AXI4_LITE_ACLK);
+    tb_cmd_in_fifo_din[7:0]     <= 8'h01;   // 1=读命令
+    tb_cmd_in_fifo_din[15:8]    <= addr;
+    tb_cmd_in_fifo_wr           <= 1'b0;
+    @(posedge S_AXI4_LITE_ACLK);
+    tb_cmd_in_fifo_wr           <= 1'b1;
+    // 等命令经 FIFO→路由→wr_issued 递增后再判忙，避免 busy 尚未拉高就穿过
+    wait(tb_cmd_rd_busy == 1'b1);
+    @(posedge S_AXI4_LITE_ACLK iff tb_cmd_rd_busy == 1'b0);
+    @(posedge S_AXI4_LITE_ACLK);
+    assert (tb_cmd_out_fifo_empty == 1'b0)
+    else $error("[AXI4_LITE_RCMD ASSERT FAIL] Read done but out_fifo is empty at time %0t!", $time);
+    tb_cmd_out_fifo_rd <= 1'b0;
+    @(posedge S_AXI4_LITE_ACLK); 
+    tb_cmd_out_fifo_rd <= 1'b1;
+    data = tb_cmd_out_fifo_dout;
+endtask
+
+initial begin//主控逻辑
+    #300 axi4_lite_wcmd(8'd0, {12'd0, 4'b0010, 16'h5A5A});
+end
+
+
+
 initial begin
     S_AXI4_LITE_ACLK = 1'b0;
     forever #5 S_AXI4_LITE_ACLK = ~S_AXI4_LITE_ACLK;
@@ -111,8 +152,6 @@ initial begin
     S_AXI4_LITE_ARESETN = 1'b1;
     M_AXI4_ARESETN      = 1'b1;
 end
-
-
 
 tb_cmd #
 (
@@ -309,6 +348,7 @@ u_tb_ram
 initial begin
     $fsdbDumpfile("wave.fsdb");   // 波形文件名
     $fsdbDumpvars(0, tb_top);     // 0 = 记录 tb_top 及以下所有层次的全部信号
+    $fsdbDumpMDA(0, tb_top);      // 同步 dump 所有多维数组/存储器变量（mem、packed/unpacked array）
 end
 
 initial begin

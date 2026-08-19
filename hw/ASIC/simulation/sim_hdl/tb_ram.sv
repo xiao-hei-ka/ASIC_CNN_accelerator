@@ -78,7 +78,7 @@ module tb_ram #(
 
     //================ 读数据通道 R ================
     output logic [S_AXI_DATA_WIDTH-1:0]         s_axi_rdata,
-    output logic [S_AXI_ID_WIDTH-1:0]          s_axi_rid,
+    output logic [S_AXI_ID_WIDTH-1:0]           s_axi_rid,
     output logic                                s_axi_rlast,
     output logic [1:0]                          s_axi_rresp,
     output logic                                s_axi_rvalid,
@@ -350,7 +350,12 @@ end
 
 //---- 写数据写入内存：按 WSTRB 逐字节掩码，越界事务不落内存 ----
 always_ff @(posedge clk) begin
-    if (rst_n && s_axi_wvalid && s_axi_wready && !wr_cur.oob) begin
+    if(!rst_n)begin
+        for (int i = 0; i < MEM_DEPTH; i++) begin
+            mem[i] <= {32'(i+12), 32'(i+8), 32'(i+4), 32'(i)};
+        end
+    end
+    else if (rst_n && s_axi_wvalid && s_axi_wready && !wr_cur.oob) begin
         for (int i = 0; i < DATA_BYTES; i++) begin
             if (s_axi_wstrb[i]) begin
                 mem[wr_mem_index][i*8 +: 8] <= s_axi_wdata[i*8 +: 8];

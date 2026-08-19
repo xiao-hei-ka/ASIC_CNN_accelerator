@@ -252,6 +252,7 @@
                     axi_bvalid  <= 1'b0;
                     axi_bresp   <= 2'd0;
                     cnt_wait_w <= 8'h00;
+                    ctrl_w_valid<= C_S_AXI_REG_COUNT'(0);
                 end
                 S_WAIT: begin
                     if (S_AXI4_LITE_AWVALID && axi_awready && S_AXI4_LITE_WVALID && axi_wready) begin
@@ -410,6 +411,7 @@
             axi_rvalid  <= 1'b0;
             axi_rresp   <= 2'd0;
             cnt_wait_r  <= 8'd0;
+            ctrl_r_valid<= C_S_AXI_REG_COUNT'(0);
         end
         else begin
             case(state_r)
@@ -418,6 +420,7 @@
                     axi_rvalid  <= 1'b0;
                     axi_rresp   <= 2'd0;
                     cnt_wait_r  <= 8'd0;
+                    axi_rdata   <= C_S_AXI_DATA_WIDTH'(0);
                 end
                 S_WAIT: begin
                     if (S_AXI4_LITE_ARVALID && axi_arready) begin
