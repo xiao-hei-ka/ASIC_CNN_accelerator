@@ -103,7 +103,7 @@ logic                              err_full;   // 读/写握手指令下发状�
 logic                              err_b;       // 写响应错误
 logic                              err_r;       // 读数据错误/结果满
 
-// dout 是寄存器的（读使能后一拍更新），rdata 延迟一拍与 dout 对齐
+// rdata 延迟一拍，与 rd_resp fifo 队头对齐
 logic        rvalid_d1;
 logic [31:0] rdata_d1;
 
@@ -115,11 +115,17 @@ assign m_axi_bready = 1'b1;
 assign m_axi_rready    = 1'b1;
 // 收到读数据当拍弹出配对 channel（低有效）
 assign rd_resp_fifo_rd = ~(m_axi_rvalid && m_axi_rready);
-//================ FIFO 读使能（低有效，IDLE 非空拉低一拍，下一拍 dout 有效）================
-assign tb_cmd_in_fifo_rd       = ~((tb_cmd_in_cs       == TB_CMD_IN_IDLE)       && !tb_cmd_in_fifo_empty);
-assign tb_cmd_in_addr_fifo_rd  = ~((tb_cmd_in_addr_cs  == TB_CMD_IN_ADDR_IDLE)  && !tb_cmd_in_addr_fifo_empty);
-assign tb_cmd_in_data_fifo_rd  = ~((tb_cmd_in_data_cs  == TB_CMD_IN_DATA_IDLE)  && !tb_cmd_in_data_fifo_empty);
-assign tb_cmd_out_addr_fifo_rd = ~((tb_cmd_out_addr_cs == TB_CMD_OUT_ADDR_IDLE) && !tb_cmd_out_addr_fifo_empty);
+//================ FWFT FIFO 读使能（低有效，即用即弹）================
+//FWFT下 empty==0 时 dout 已是队头，无需预读一拍；
+//故在真正使用 dout 的那一拍（READ 态）拉低，把队头消费掉。
+assign tb_cmd_in_fifo_rd       = ~((tb_cmd_in_cs       == TB_CMD_IN_READ)       && !tb_cmd_in_fifo_empty);
+//AW/W/AR：需等握手成功那一拍才能弹出，否则 dout 提前变化会破坏正在发的地址/数据
+assign tb_cmd_in_addr_fifo_rd  = ~((tb_cmd_in_addr_cs  == TB_CMD_IN_ADDR_READ)  && !tb_cmd_in_addr_fifo_empty
+                                   && m_axi_awvalid && m_axi_awready);
+assign tb_cmd_in_data_fifo_rd  = ~((tb_cmd_in_data_cs  == TB_CMD_IN_DATA_READ)  && !tb_cmd_in_data_fifo_empty
+                                   && m_axi_wvalid && m_axi_wready);
+assign tb_cmd_out_addr_fifo_rd = ~((tb_cmd_out_addr_cs == TB_CMD_OUT_ADDR_READ) && !tb_cmd_out_addr_fifo_empty
+                                   && m_axi_arvalid && m_axi_arready);
 
 // ---- 命令路由状态机 ----
 always_ff @(posedge clk) begin

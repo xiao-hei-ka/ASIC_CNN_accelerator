@@ -121,10 +121,11 @@ task axi4_lite_rcmd(input logic [7:0] addr, output logic [31:0] data);
     @(posedge S_AXI4_LITE_ACLK);
     assert (tb_cmd_out_fifo_empty == 1'b0)
     else $error("[AXI4_LITE_RCMD ASSERT FAIL] Read done but out_fifo is empty at time %0t!", $time);
-    tb_cmd_out_fifo_rd <= 1'b0;
-    @(posedge S_AXI4_LITE_ACLK); 
-    tb_cmd_out_fifo_rd <= 1'b1;
+    //FWFT：dout 当前已是队头，先取值再弹出
     data = tb_cmd_out_fifo_dout;
+    tb_cmd_out_fifo_rd <= 1'b0;
+    @(posedge S_AXI4_LITE_ACLK);
+    tb_cmd_out_fifo_rd <= 1'b1;
 endtask
 
 initial begin//主控逻辑

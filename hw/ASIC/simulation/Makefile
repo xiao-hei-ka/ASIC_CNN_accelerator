@@ -27,6 +27,7 @@ RTL = \
 	$(RTL_DIR)/sync_fifo.sv \
 	$(RTL_DIR)/reset_synchronizer.sv \
 	$(RTL_DIR)/para_sram.sv \
+	$(RTL_DIR)/ping_sram.sv \
 	$(RTL_DIR)/sram_mgr.sv \
 	$(RTL_DIR)/axi4_frame_parser.sv \
 	$(RTL_DIR)/axi4_lite_interface.sv \
@@ -39,7 +40,8 @@ TB = \
 	$(TB_DIR)/tb_top.sv
 
 # ---- 3. SRAM 模型：两个只能选一个！----
-SRAM_MODEL = $(TB_DIR)/tb_sram_1rw_256x128.v
+SRAM_MODEL = \
+	$(TB_DIR)/tb_sram_1rw_256x128.v
 
 # ---- 4. 仿真参数 ----
 TOP     = tb_top        # 仿真顶层模块名
@@ -59,12 +61,12 @@ all: run                 # 直接敲 make 就等于 make run
 
 # 保证 sim_prj/ 目录存在（不存在才创建）
 $(WORK_DIR):
-	mkdir -p $@
+	@mkdir -p $@
 
 compile: $(WORK_DIR)
-	cd $(WORK_DIR) && $(VCS_HOME)/bin/vcs -full64 -sverilog +v2k \
+	@cd $(WORK_DIR) && $(VCS_HOME)/bin/vcs -full64 -sverilog +v2k -q \
 	-timescale=1ns/1ps \
-	-debug_access+all \
+	-debug_access+r \
 	-P $(VERDI_HOME)/share/PLI/VCS/LINUX64/novas.tab \
 	$(VERDI_HOME)/share/PLI/VCS/LINUX64/pli.a \
 	+incdir+$(INC_ABS) \
@@ -72,7 +74,7 @@ compile: $(WORK_DIR)
 	-top $(TOP) -l compile.log -o $(SIM_BIN)
 
 run: compile
-	cd $(WORK_DIR) && ./$(SIM_BIN) -l run.log
+	@cd $(WORK_DIR) && ./$(SIM_BIN) -l run.log
 
 flist: $(WORK_DIR)
 	@echo "-sverilog"          > $(WORK_DIR)/filelist.f
@@ -83,8 +85,8 @@ flist: $(WORK_DIR)
 	@cat $(WORK_DIR)/filelist.f
 
 verdi: flist
-	cd $(WORK_DIR) && $(VERDI_HOME)/bin/verdi -sverilog +v2k \
+	@cd $(WORK_DIR) && $(VERDI_HOME)/bin/verdi -sverilog +v2k \
 	-f filelist.f -top $(TOP) -ssf wave.fsdb &
 
 clean:
-	rm -rf $(WORK_DIR)
+	@rm -rf $(WORK_DIR)

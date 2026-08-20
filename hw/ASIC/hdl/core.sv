@@ -57,12 +57,13 @@ enum logic [7:0]
 {
     MAIN_IDLE,
     MAIN_TEST,
-    MAIN_TEST2
+    MAIN_TEST2,
+    MAIN_TEST3
 } main_cs, main_ns;
 
 //sram_mgr
 logic           ddr2sram_cmd_wr_en;//低有效
-logic [17:0]    ddr2sram_cmd_din;
+logic [18:0]    ddr2sram_cmd_din;
 logic           ddr2sram_cmd_full;
 logic           para_r_busy;
 logic           ping1_r_busy;
@@ -102,7 +103,12 @@ always_comb begin
             end
         end
         MAIN_TEST2:begin
-            main_ns = MAIN_TEST2;
+            if(ddr2sram_cmd_full == 1'b0) begin
+                main_ns = MAIN_TEST3;
+            end
+        end
+        MAIN_TEST3:begin
+            main_ns = MAIN_TEST3;
         end
     endcase
 end
@@ -120,9 +126,13 @@ always_ff @(posedge gating_clk)begin
             end
             MAIN_TEST:begin
                 ddr2sram_cmd_wr_en  <= 1'b0;
-                ddr2sram_cmd_din    <= {2'd0, 1'b0, 9'd0, 6'd0};
+                ddr2sram_cmd_din    <= {7'd127, 9'd0, 1'b1, 2'd1};
             end
             MAIN_TEST2:begin
+                ddr2sram_cmd_wr_en  <= 1'b0;
+                ddr2sram_cmd_din    <= {7'd54, 9'd128, 1'b1, 2'd1};
+            end
+            MAIN_TEST3:begin
                 ddr2sram_cmd_wr_en  <= 1'b1;
                 ddr2sram_cmd_din    <= 18'd0;
             end
@@ -134,9 +144,7 @@ sram_mgr #
 (
     .C_M_AXI_ID_WIDTH           (C_M_AXI_ID_WIDTH),
     .C_M_AXI_ADDR_WIDTH         (C_M_AXI_ADDR_WIDTH),
-    .C_M_AXI_DATA_WIDTH         (C_M_AXI_DATA_WIDTH),
-    .DDR2SRAM_CMD_FIFO_WIDTH    (18),
-    .DDR2SRAM_CMD_FIFO_DEPTH    (4)
+    .C_M_AXI_DATA_WIDTH         (C_M_AXI_DATA_WIDTH)
 )
 u_sram_mgr
 (

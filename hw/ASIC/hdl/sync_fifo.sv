@@ -1,5 +1,8 @@
+//FWFT(First Word Fall Through) fifo：
+//  empty==0 时 dout 上已经是队头数据，无需先给 rd_en 再等一拍；
+//  rd_en(低有效)含义为“本拍消费掉队头”，下一拍 dout 自动变为下一个数据。
 module sync_fifo #(
-    parameter WIDTH = 18,
+    parameter WIDTH = 19,
     parameter DEPTH = 4,
     parameter RST_MODE = "sync"
 )(
@@ -22,11 +25,14 @@ logic [ADDR_W:0] wr_ptr, rd_ptr;
 assign full = ((wr_ptr[ADDR_W-1:0] == rd_ptr[ADDR_W-1:0]) && (wr_ptr[ADDR_W] != rd_ptr[ADDR_W]));
 assign empty= ((wr_ptr[ADDR_W-1:0] == rd_ptr[ADDR_W-1:0]) && (wr_ptr[ADDR_W] == rd_ptr[ADDR_W]));
 
+//FWFT：dout 直接组合输出队头，empty==0 即有效
+assign dout = mem[rd_ptr[ADDR_W-1 : 0]];
+
+
 generate
     if(IF_SYNC == 1'b1) begin:sync_rst
         always_ff @(posedge clk) begin
             if(rst_n == 1'b0) begin
-                dout <= '0;
                 wr_ptr<= '0;
                 rd_ptr<= '0;
             end
@@ -36,7 +42,6 @@ generate
                     wr_ptr <= wr_ptr + (ADDR_W+1)'(1);
                 end
                 if(rd_en == 1'b0 && empty != 1'b1) begin
-                    dout <= mem[rd_ptr[ADDR_W-1 : 0]];
                     rd_ptr <= rd_ptr + (ADDR_W+1)'(1);
                 end
             end
@@ -57,7 +62,6 @@ generate
         end
         always_ff @(posedge clk or negedge rst_n_sync2) begin
             if(rst_n_sync2 == 1'b0) begin
-                dout <= '0;
                 wr_ptr<= '0;
                 rd_ptr<= '0;
             end
@@ -67,7 +71,6 @@ generate
                     wr_ptr <= wr_ptr + (ADDR_W+1)'(1);
                 end
                 if(rd_en == 1'b0 && empty != 1'b1) begin
-                    dout <= mem[rd_ptr[ADDR_W-1 : 0]];
                     rd_ptr <= rd_ptr + (ADDR_W+1)'(1);
                 end
             end
