@@ -10,7 +10,7 @@ module ping_sram
     output  logic [127:0]   ping_dout_final  // 最终数据输出
 );
 
-localparam SRAM_CNT = 14;
+localparam SRAM_CNT = 16;
 
 logic [127:0] ping_dout [0:SRAM_CNT-1];// 输出数据
 logic [SRAM_CNT-1 : 0] spare_q;//冗余列输出，不接逻辑，单纯放在这防止综合器错误优化sram仿真模型
@@ -34,7 +34,7 @@ always_ff @(posedge clk)begin//mux
 end
 
 generate
-    for(genvar i = 0; i<SRAM_CNT; i++)begin:ping_sram
+    for(genvar i = 0; i<SRAM_CNT; i++)begin:ping_sram_unit
         sram_1rw_256x128 ping (
             .clk0      (clk),
             .csb0      (ping_cs_final[i]),
@@ -46,5 +46,16 @@ generate
         );
     end
 endgenerate
+
+`ifdef SIMULATION
+    logic [127:0] virtual_ping_sram [0:256*SRAM_CNT-1];
+    generate
+        for(genvar i = 0; i<SRAM_CNT; i++)begin
+            for(genvar j = 0; j<256; j++)begin
+                assign virtual_ping_sram[i*256 + j] = ping_sram_unit[i].ping.mem[j][127:0];
+            end
+        end
+    endgenerate
+`endif
 
 endmodule

@@ -1,4 +1,5 @@
 `timescale 1 ns / 1 ps
+`include "def_file.vh"
 
 module para_sram
 (
@@ -34,7 +35,7 @@ always_ff @(posedge clk)begin//mux
 end
 
 generate
-    for(genvar i = 0; i<SRAM_CNT; i++)begin:para_sram
+    for(genvar i = 0; i<SRAM_CNT; i++)begin:para_sram_unit
         sram_1rw_256x128 para (
             .clk0      (clk),
             .csb0      (para_cs_final[i]),
@@ -46,5 +47,16 @@ generate
         );
     end
 endgenerate
+
+`ifdef SIMULATION
+    logic [127:0] virtual_para_sram [0:256*SRAM_CNT-1];
+    generate
+        for(genvar i = 0; i<SRAM_CNT; i++)begin
+            for(genvar j = 0; j<256; j++)begin
+                assign virtual_para_sram[i*256 + j] = para_sram_unit[i].para.mem[j][127:0];
+            end
+        end
+    endgenerate
+`endif
 
 endmodule

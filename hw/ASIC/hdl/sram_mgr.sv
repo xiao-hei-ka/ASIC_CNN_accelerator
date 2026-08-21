@@ -57,8 +57,13 @@ module sram_mgr #
 
 localparam ddr2sram_ID = C_M_AXI_ID_WIDTH'(0);//所有从DDR到sram的写动作的id都为0
 localparam r_leftMove_per_burst = 8'd12;////每次读事件地址握手突发事务后地址移动次数，每次突发传输256个字
-parameter integer DDR2SRAM_CMD_FIFO_WIDTH   = 19;
-parameter integer DDR2SRAM_CMD_FIFO_DEPTH	= 4;
+localparam DDR2SRAM_CMD_FIFO_WIDTH   = 19;
+localparam DDR2SRAM_CMD_FIFO_DEPTH	= 4;
+localparam [7:0] R_ADDR_BURST_TIMES_PARA = 8'd13;//DDR2para的突发传输次数
+localparam [7:0] R_ADDR_LAST_LEN_PARA = 8'd25;//DDR2para的最后一次突发传输长度
+localparam [31:0] DATA_BUF_1_BIAS = 32'd256 << 8;//数据缓冲区1偏移地址
+localparam [31:0] DATA_BUF_2_BIAS = 32'd2304 << 8;//数据缓冲区2偏移地址
+
 enum logic [7:0]
 {
     D2S_IDLE,
@@ -126,7 +131,7 @@ logic                               r_data_finished             ;
 logic                               core_cmd_error              ;//fifo指令错误
 //地址握手
 logic  [ 7:0]                       r_addr_burst_times_already  ;//参数传递的全过程已经完整进行过的读地址握手事务次数
-logic  [ 7:0]                       r_addr_last_len             ;//参数从ddr中读地址握手的最后一次突发读事物读取拍数。 
+logic  [ 9:0]                       r_addr_last_len             ;//参数从ddr中读地址握手的最后一次突发读事物读取拍数。 
 logic  [ 7:0]                       r_addr_burst_times          ;//参数总共该进行多少次突发事务
 logic  [C_M_AXI_ADDR_WIDTH-1:0]     addr_base_addr              ;//本次传输任务的基地址
 logic                               core_cmd_error_addr         ;//数据握手fifo指令错误
@@ -297,7 +302,7 @@ always_ff @(posedge clk) begin
                 // FWFT：dout 已随 empty 有效，此处无需预读
             end
             D2S_RD_CMD: begin
-                if((ddr2sram_addr_routing_full == 1'b1) || (ddr2sram_data_routing_full == 1'b1)) begin
+                if((ddr2sram_addr_routing_full == 1'b1) || (ddr2sram_data_routing_full == 1'b1) || (ddr2sram_cmd_empty == 1'b1)) begin
                     // 路由 FIFO 满：本拍不转发、不弹出命令，dout 保持当前命令，下拍重试
                     ddr2sram_addr_routing_wr_en <= 1'b1;
                     ddr2sram_data_routing_wr_en <= 1'b1;
@@ -388,30 +393,30 @@ always_ff @(posedge clk) begin
             R_ADDR_RD_CMD:begin
                 if(ddr2sram_addr_routing_dout[1:0] == 2'b00) begin//para
                     r_addr_pointer              <= R_ADDR_PARA ;
-                    r_addr_burst_times          <= 8'd13;
-                    r_addr_last_len             <= 8'd2;
+                    r_addr_burst_times          <= R_ADDR_BURST_TIMES_PARA;
+                    r_addr_last_len             <= R_ADDR_LAST_LEN_PARA;
                     addr_base_addr              <= udmabuf_base_addr + 32'd0;
                 end
                 else if(ddr2sram_addr_routing_dout[1:0] == 2'b01) begin//ping1
                     r_addr_pointer              <= R_ADDR_PING1 ;
-                    r_addr_burst_times          <= 8'(ddr2sram_cmd_din[18:14]) + 8'd1;//par1a、para1b都包揽
-                    r_addr_last_len             <= 8'(ddr2sram_cmd_din[13:12] + 1) << 2 ;
+                    r_addr_burst_times          <= 8'(ddr2sram_addr_routing_dout[18:14]) + 8'd1;//par1a、para1b都包揽
+                    r_addr_last_len             <= 8'(ddr2sram_addr_routing_dout[13:12] + 1) << 6 ;
                     if(ddr2sram_addr_routing_dout[2] == 1'b0) begin//从ddr的缓冲区0读取
-                        addr_base_addr              <= udmabuf_base_addr + (32'd193 << 8) + (ddr2sram_addr_routing_dout[11:3] << 4);
+                        addr_base_addr              <= udmabuf_base_addr + DATA_BUF_1_BIAS + (ddr2sram_addr_routing_dout[11:3] << 10);
                     end
                     if(ddr2sram_addr_routing_dout[2] == 1'b1) begin//从ddr的缓冲区1读取
-                        addr_base_addr              <= udmabuf_base_addr + (32'd2241 << 8) + (32'(ddr2sram_addr_routing_dout[11:3]) << 4);
+                        addr_base_addr              <= udmabuf_base_addr + DATA_BUF_2_BIAS + (32'(ddr2sram_addr_routing_dout[11:3]) << 10);
                     end
                 end
                 else if(ddr2sram_addr_routing_dout[1:0] == 2'b10) begin//ping2
                     r_addr_pointer              <= R_ADDR_PING2 ;
-                    r_addr_burst_times          <= 8'(ddr2sram_cmd_din[18:14]) + 8'd1;//par1a、para1b都包揽
-                    r_addr_last_len             <= 8'(ddr2sram_cmd_din[13:12] + 1) << 2 ;
+                    r_addr_burst_times          <= 8'(ddr2sram_addr_routing_dout[18:14]) + 8'd1;//par1a、para1b都包揽
+                    r_addr_last_len             <= 8'(ddr2sram_addr_routing_dout[13:12] + 1) << 6 ;
                     if(ddr2sram_addr_routing_dout[2] == 1'b0) begin//从ddr的缓冲区0读取
-                        addr_base_addr              <= udmabuf_base_addr + (32'd193 << 8) + (ddr2sram_addr_routing_dout[11:3] << 4);
+                        addr_base_addr              <= udmabuf_base_addr + DATA_BUF_1_BIAS + (ddr2sram_addr_routing_dout[11:3] << 10);
                     end
                     if(ddr2sram_addr_routing_dout[2] == 1'b1) begin//从ddr的缓冲区1读取
-                        addr_base_addr              <= udmabuf_base_addr + (32'd2241 << 8) + (32'(ddr2sram_addr_routing_dout[11:3]) << 4);
+                        addr_base_addr              <= udmabuf_base_addr + DATA_BUF_2_BIAS + (32'(ddr2sram_addr_routing_dout[11:3]) << 10);
                     end
                 end
                 else begin//else
@@ -463,7 +468,7 @@ always_comb begin
             end
         end
         R_DATA_RD_CMD:begin
-            if(ddr2sram_data_routing_dout[1:0] == 2'd0)begin
+            if(ddr2sram_data_routing_dout[1:0] != 2'd3)begin
                 r_data_ns = R_DATA_RD_RCV;
             end
             else begin
@@ -503,15 +508,15 @@ always_ff @(posedge clk) begin
             R_DATA_RD_CMD:begin
                 if(ddr2sram_data_routing_dout[1:0] == 2'd0)begin//para
                     r_data_pointer              <= R_DATA_PARA;
-                    r_data_burst_times          <= 8'd13;
+                    r_data_burst_times          <= R_ADDR_BURST_TIMES_PARA;
                 end
                 else if(ddr2sram_data_routing_dout[1:0] == 2'd1)begin//ping1
                     r_data_pointer              <= R_DATA_PING1;
-                    r_data_burst_times          <= 8'd16;
+                    r_data_burst_times          <= 8'(ddr2sram_data_routing_dout[18:14]) + 8'd1;//par1a、para1b都包揽
                 end
                 else if(ddr2sram_data_routing_dout[1:0] == 2'd2)begin//ping2
                     r_data_pointer              <= R_DATA_PING2;
-                    r_data_burst_times          <= 8'd16;
+                    r_data_burst_times          <= 8'(ddr2sram_data_routing_dout[18:14]) + 8'd1;//par1a、para1b都包揽
                 end
                 else begin//else
                     core_cmd_error_data <= 1'b1;
@@ -552,7 +557,7 @@ assert property (p_full_burst_256_beats);
 always_ff @(posedge clk)begin
     if(rst_n == 1'b0) begin
         para_addr <='0;
-        para_cs <= 1'b0;
+        para_cs <= 1'b1;
         para_wr <= 1'b0;
         para_din<= '0;
     end
@@ -563,7 +568,7 @@ always_ff @(posedge clk)begin
         para_din<= M_AXI4_RDATA;
     end
     else begin
-        para_cs <= 1'b0;
+        para_cs <= 1'b1;
     end
 end
 
@@ -571,11 +576,11 @@ end
 always_ff @(posedge clk)begin
     if(rst_n == 1'b0) begin
         ping1a_addr <='0;
-        ping1a_cs <= 1'b0;
+        ping1a_cs <= 1'b1;
         ping1a_wr <= 1'b0;
         ping1a_din<= '0;
         ping1b_addr <='0;
-        ping1b_cs <= 1'b0;
+        ping1b_cs <= 1'b1;
         ping1b_wr <= 1'b0;
         ping1b_din<= '0;
     end
@@ -594,8 +599,8 @@ always_ff @(posedge clk)begin
         end
     end
     else begin
-        ping1a_cs <= 1'b0;
-        ping1b_cs <= 1'b0;
+        ping1a_cs <= 1'b1;
+        ping1b_cs <= 1'b1;
     end
 end
 
@@ -603,11 +608,11 @@ end
 always_ff @(posedge clk)begin
     if(rst_n == 1'b0) begin
         ping2a_addr <='0;
-        ping2a_cs <= 1'b0;
+        ping2a_cs <= 1'b1;
         ping2a_wr <= 1'b0;
         ping2a_din<= '0;
         ping2b_addr <='0;
-        ping2b_cs <= 1'b0;
+        ping2b_cs <= 1'b1;
         ping2b_wr <= 1'b0;
         ping2b_din<= '0;
     end
@@ -626,8 +631,8 @@ always_ff @(posedge clk)begin
         end
     end
     else begin
-        ping2a_cs <= 1'b0;
-        ping2b_cs <= 1'b0;
+        ping2a_cs <= 1'b1;
+        ping2b_cs <= 1'b1;
     end
 end
 
