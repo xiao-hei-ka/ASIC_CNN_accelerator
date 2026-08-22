@@ -57,7 +57,7 @@ module tb_ram #(
     output logic                                s_axi_wready,
 
     //================ 写响应通道 B ================
-    output logic [S_AXI_ID_WIDTH-1:0]          s_axi_bid,
+    output logic [S_AXI_ID_WIDTH-1:0]           s_axi_bid,
     output logic [1:0]                          s_axi_bresp,
     output logic                                s_axi_bvalid,
     input  logic                                s_axi_bready,
@@ -352,7 +352,7 @@ end
 always_ff @(posedge clk) begin
     if(!rst_n)begin
         for (int i = 0; i < MEM_DEPTH; i++) begin
-            mem[i] <= {32'(i+12), 32'(i+8), 32'(i+4), 32'(i)};
+            mem[i] <= {32'(16*i+12), 32'(16*i+8), 32'(16*i+4), 32'(16*i)};
         end
     end
     else if (rst_n && s_axi_wvalid && s_axi_wready && !wr_cur.oob) begin

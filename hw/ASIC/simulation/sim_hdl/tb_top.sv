@@ -128,7 +128,7 @@ task axi4_lite_rcmd(input logic [7:0] addr, output logic [31:0] data);
     tb_cmd_out_fifo_rd <= 1'b1;
 endtask
 
-initial begin//主控逻辑
+initial begin//CPU侧主控逻辑
     #300 axi4_lite_wcmd(8'd0, {12'd0, 4'b0010, 16'h5A5A});
 end
 

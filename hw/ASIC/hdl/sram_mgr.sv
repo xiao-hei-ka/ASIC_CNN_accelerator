@@ -131,6 +131,7 @@ logic                               r_data_finished             ;
 logic                               core_cmd_error              ;//fifo指令错误
 //地址握手
 logic  [ 7:0]                       r_addr_burst_times_already  ;//参数传递的全过程已经完整进行过的读地址握手事务次数
+logic  [ 7:0]                       n_r_addr_burst_times_already;//下一拍的参数传递的全过程已经完整进行过的读地址握手事务次数
 logic  [ 9:0]                       r_addr_last_len             ;//参数从ddr中读地址握手的最后一次突发读事物读取拍数。 
 logic  [ 7:0]                       r_addr_burst_times          ;//参数总共该进行多少次突发事务
 logic  [C_M_AXI_ADDR_WIDTH-1:0]     addr_base_addr              ;//本次传输任务的基地址
@@ -373,13 +374,13 @@ always_ff @(posedge clk) begin
         M_AXI4_ARLEN                <= '0;
         M_AXI4_ARVALID              <= '0;
         M_AXI4_ARID                 <= '0;
-        r_addr_burst_times_already  <= '0;
         r_addr_last_len             <= '0;
         r_addr_burst_times          <= '0;
         r_addr_finished             <= '0;
         r_addr_pointer              <= R_ADDR_PARA;
         addr_base_addr              <= '0;
         core_cmd_error_addr         <= '0;
+        r_addr_burst_times_already  <= 8'd0;
     end
     else begin
         M_AXI4_ARVALID              <= 1'b0;
@@ -387,8 +388,8 @@ always_ff @(posedge clk) begin
         core_cmd_error_addr         <= 1'b0;
         case(r_addr_cs)
             R_ADDR_IDLE:begin
+                r_addr_burst_times_already <= 8'd0;
                 // FWFT：dout 已随 empty 有效，此处无需预读
-                r_addr_burst_times_already  <= 8'd0;
             end
             R_ADDR_RD_CMD:begin
                 if(ddr2sram_addr_routing_dout[1:0] == 2'b00) begin//para
@@ -402,7 +403,7 @@ always_ff @(posedge clk) begin
                     r_addr_burst_times          <= 8'(ddr2sram_addr_routing_dout[18:14]) + 8'd1;//par1a、para1b都包揽
                     r_addr_last_len             <= 8'(ddr2sram_addr_routing_dout[13:12] + 1) << 6 ;
                     if(ddr2sram_addr_routing_dout[2] == 1'b0) begin//从ddr的缓冲区0读取
-                        addr_base_addr              <= udmabuf_base_addr + DATA_BUF_1_BIAS + (ddr2sram_addr_routing_dout[11:3] << 10);
+                        addr_base_addr              <= udmabuf_base_addr + DATA_BUF_1_BIAS + (32'(ddr2sram_addr_routing_dout[11:3]) << 10);
                     end
                     if(ddr2sram_addr_routing_dout[2] == 1'b1) begin//从ddr的缓冲区1读取
                         addr_base_addr              <= udmabuf_base_addr + DATA_BUF_2_BIAS + (32'(ddr2sram_addr_routing_dout[11:3]) << 10);
@@ -413,7 +414,7 @@ always_ff @(posedge clk) begin
                     r_addr_burst_times          <= 8'(ddr2sram_addr_routing_dout[18:14]) + 8'd1;//par1a、para1b都包揽
                     r_addr_last_len             <= 8'(ddr2sram_addr_routing_dout[13:12] + 1) << 6 ;
                     if(ddr2sram_addr_routing_dout[2] == 1'b0) begin//从ddr的缓冲区0读取
-                        addr_base_addr              <= udmabuf_base_addr + DATA_BUF_1_BIAS + (ddr2sram_addr_routing_dout[11:3] << 10);
+                        addr_base_addr              <= udmabuf_base_addr + DATA_BUF_1_BIAS + (32'(ddr2sram_addr_routing_dout[11:3]) << 10);
                     end
                     if(ddr2sram_addr_routing_dout[2] == 1'b1) begin//从ddr的缓冲区1读取
                         addr_base_addr              <= udmabuf_base_addr + DATA_BUF_2_BIAS + (32'(ddr2sram_addr_routing_dout[11:3]) << 10);
@@ -424,30 +425,42 @@ always_ff @(posedge clk) begin
                 end
             end
             R_ADDR_AR_SEND:begin
-                M_AXI4_ARADDR <= addr_base_addr + (C_M_AXI_ADDR_WIDTH'(r_addr_burst_times_already) << r_leftMove_per_burst);
+                M_AXI4_ARADDR <= addr_base_addr + (C_M_AXI_ADDR_WIDTH'(n_r_addr_burst_times_already) << r_leftMove_per_burst);
                 M_AXI4_ARID   <= ddr2sram_ID;
-                if(r_addr_burst_times_already < (r_addr_burst_times-1)) begin
+                if(n_r_addr_burst_times_already < (r_addr_burst_times-1)) begin
                     M_AXI4_ARLEN <= 8'd255;
                 end
                 else begin
                     M_AXI4_ARLEN <= r_addr_last_len-1;
                 end
-                M_AXI4_ARVALID <= 1'b1;
                 if(M_AXI4_ARVALID == 1'b1 && M_AXI4_ARREADY == 1'b1) begin
                     if(r_addr_burst_times_already < (r_addr_burst_times-1)) begin
                         r_addr_burst_times_already <= r_addr_burst_times_already + 8'd1;
                     end
                     else begin
-                        r_addr_burst_times_already  <= 8'd0;
                         r_addr_finished             <= 1'b1;
-                        M_AXI4_ARVALID              <= 1'b0;
                     end
+                end
+                if(r_addr_burst_times_already >= (r_addr_burst_times - 1) && (M_AXI4_ARVALID == 1'b1 && M_AXI4_ARREADY == 1'b1))begin
+                    M_AXI4_ARVALID              <= 1'b0;
+                end
+                else begin
+                    M_AXI4_ARVALID              <= 1'b1;
                 end
             end
         endcase
     end
 end
-                
+
+always_comb begin
+    n_r_addr_burst_times_already = r_addr_burst_times_already;
+    if(r_addr_cs == R_ADDR_AR_SEND && (M_AXI4_ARVALID == 1'b1 && M_AXI4_ARREADY == 1'b1) && r_addr_burst_times_already < (r_addr_burst_times-1))begin
+        n_r_addr_burst_times_already = r_addr_burst_times_already + 8'd1;
+    end
+end
+
+
+
 //read_data状态机
 //一段
 always_ff @(posedge clk) begin

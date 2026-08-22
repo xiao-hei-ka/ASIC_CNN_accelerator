@@ -58,7 +58,8 @@ enum logic [7:0]
     MAIN_IDLE,
     MAIN_TEST,
     MAIN_TEST2,
-    MAIN_TEST3
+    MAIN_TEST3,
+    MAIN_TEST4
 } main_cs, main_ns;
 
 //sram_mgr
@@ -108,7 +109,10 @@ always_comb begin
             end
         end
         MAIN_TEST3:begin
-            main_ns = MAIN_TEST3;
+            main_ns = MAIN_TEST4;
+        end
+        MAIN_TEST4:begin
+            main_ns = MAIN_TEST4;
         end
     endcase
 end
@@ -122,19 +126,23 @@ always_ff @(posedge gating_clk)begin
         case(main_cs)
             MAIN_IDLE:begin
                 ddr2sram_cmd_wr_en  <= 1'b1;
-                ddr2sram_cmd_din    <= 18'd0;
+                ddr2sram_cmd_din    <= 19'd0;
             end
             MAIN_TEST:begin
                 ddr2sram_cmd_wr_en  <= 1'b0;
-                ddr2sram_cmd_din    <= {7'd127, 9'd0, 1'b1, 2'd1};
+                ddr2sram_cmd_din    <= {7'd127, 9'd0, 1'b1, 2'd0};
             end
             MAIN_TEST2:begin
                 ddr2sram_cmd_wr_en  <= 1'b0;
-                ddr2sram_cmd_din    <= {7'd54, 9'd128, 1'b1, 2'd1};
+                ddr2sram_cmd_din    <= {7'd127, 9'd0, 1'b1, 2'd1};
             end
             MAIN_TEST3:begin
+                ddr2sram_cmd_wr_en  <= 1'b0;
+                ddr2sram_cmd_din    <= {7'd54, 9'd128, 1'b0, 2'd2};
+            end
+            MAIN_TEST4:begin
                 ddr2sram_cmd_wr_en  <= 1'b1;
-                ddr2sram_cmd_din    <= 18'd0;
+                ddr2sram_cmd_din    <= 19'd0;
             end
         endcase            
     end
