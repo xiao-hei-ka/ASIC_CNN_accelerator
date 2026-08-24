@@ -120,6 +120,6 @@ def test_accuracy(model_dir, npz_path):
     print(f'\n准确率: {100.0*correct/len(y_test):.2f}% ({correct}/{len(y_test)})')
 
 if __name__ == '__main__':
-    MODEL_DIR = r'E:\kv260-cnn-gemm-accelerator\models\hardware'
-    MNIST_PATH = r'E:\kv260-cnn-gemm-accelerator\sw\python\model_training\data\MNIST\mnist.npz'
+    MODEL_DIR = r'E:\prj\ASIC_CNN_accelerator\models\hardware'
+    MNIST_PATH = r'E:\prj\ASIC_CNN_accelerator\sw\python\model_training\data\MNIST\mnist.npz'
     test_accuracy(MODEL_DIR, MNIST_PATH)
