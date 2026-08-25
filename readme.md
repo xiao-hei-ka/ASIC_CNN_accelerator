@@ -10,11 +10,7 @@
 
 ## ASIC微架构图示
 
-
-
-
-
-
+- ![微架构图示](doc/微架构图示.png)
 
 ## 详细设计报告
 - [detailed design.md](doc/detailed_design.md)
