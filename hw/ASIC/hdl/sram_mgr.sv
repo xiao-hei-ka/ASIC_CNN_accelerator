@@ -60,7 +60,7 @@ localparam r_leftMove_per_burst = 8'd12;////每次读事件地址握手突发事
 localparam DDR2SRAM_CMD_FIFO_WIDTH   = 19;
 localparam DDR2SRAM_CMD_FIFO_DEPTH	= 4;
 localparam [7:0] R_ADDR_BURST_TIMES_PARA = 8'd13;//DDR2para的突发传输次数
-localparam [7:0] R_ADDR_LAST_LEN_PARA = 8'd25;//DDR2para的最后一次突发传输长度
+localparam [7:0] R_ADDR_LAST_LEN_PARA = 8'd89;//DDR2para的最后一次突发传输长度（12*256+89个128bit beat，覆盖到Z数据）
 localparam [31:0] DATA_BUF_1_BIAS = 32'd256 << 8;//数据缓冲区1偏移地址
 localparam [31:0] DATA_BUF_2_BIAS = 32'd2304 << 8;//数据缓冲区2偏移地址
 

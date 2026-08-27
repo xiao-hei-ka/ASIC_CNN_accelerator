@@ -68,7 +68,13 @@ def load_model(model_dir):
     params = {}
     for layer in cfg['layers']:
         name = layer['name']
-        w = np.fromfile(os.path.join(model_dir, layer['weight_file']), dtype=np.int8).reshape(layer['weight_shape'])
+        weight_shape = tuple(layer['weight_shape'])
+        out_channels = weight_shape[0]
+        k_size = int(np.prod(weight_shape[1:], dtype=np.int64))
+        padded_out_channels = ((out_channels + 7) // 8) * 8
+        w = np.fromfile(
+            os.path.join(model_dir, layer['weight_file']), dtype=np.int8
+        ).reshape(k_size, padded_out_channels)[:, :out_channels].T.reshape(weight_shape)
         b = np.fromfile(os.path.join(model_dir, layer['bias_file']), dtype=np.int32).reshape(layer['bias_shape'])
         params[name] = {
             'w': w, 'b': b,

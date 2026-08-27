@@ -476,6 +476,12 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
         weight_quantized = module.weight()  # 这是量化后的张量
         weight_int8 = weight_quantized.int_repr().numpy().astype(np.int8)  # 转成numpy的int8数组
         print(f"  权重形状: {weight_int8.shape}")
+
+        # 保存为硬件读取格式：[K][补齐后的输出通道]。
+        weight_flat = weight_int8.reshape(weight_int8.shape[0], -1)
+        padded_out_channels = ((weight_flat.shape[0] + 7) // 8) * 8
+        weight_hw = np.zeros((weight_flat.shape[1], padded_out_channels), dtype=np.int8)
+        weight_hw[:, :weight_flat.shape[0]] = weight_flat.T
         
         # ----- 2.2 提取权重的scale和zero_point -----
         # PyTorch的fbgemm对卷积用per-channel量化（每个输出通道一个scale）
@@ -539,11 +545,11 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
         weight_filename = f'{name.replace(".", "_")}_weight.bin'
         bias_filename = f'{name.replace(".", "_")}_bias.bin'
         
-        weight_int8.astype('<i1').tofile(os.path.join(output_dir, weight_filename))
+        weight_hw.astype('<i1').tofile(os.path.join(output_dir, weight_filename))
         bias_int32.astype('<i4').tofile(os.path.join(output_dir, bias_filename))
 
         
-        print(f"  已保存: {weight_filename} ({weight_int8.nbytes} bytes)")
+        print(f"  已保存: {weight_filename} ({weight_hw.nbytes} bytes)")
         print(f"  已保存: {bias_filename} ({bias_int32.nbytes} bytes)")
         
         # ----- 2.7 记录这层的配置到JSON -----

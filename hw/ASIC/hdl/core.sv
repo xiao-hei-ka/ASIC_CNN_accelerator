@@ -55,7 +55,8 @@ module core#
 
 struct packed
 {
-    logic [23:0] rsv;
+    logic [22:0] rsv;
+    logic       cs_err;
     logic [1:0] batch_mgr_err;
     logic [1:0] im_in_err;      //bit0:缓冲区1非法无效；bit1：缓冲区2非法无效
     logic [3:0] sram_mgr_err;
@@ -91,13 +92,14 @@ logic ping2_sram_ok;
 logic ping_ptr;//0:ping1;1:ping2
 //batch_mgr
 logic           is_routing = (main_cs == MAIN_1_BITCH_ROUTING); //当前是否为新一轮状态路由工作拍
-logic           im_in_buffer_ptr;                       //指示本轮使用的缓冲区，0:缓冲区1，1:缓冲区2
-logic [8:0]     im_in_data_ptr;                         //指示本轮计算从第几个图像开始，从0开始计数。
-logic [6:0]     im_in_data_size;                        //指示本轮计算图像个数
-logic           im_in_data_valid                        //指示图像数据是否有效
-
-
-
+logic           im_in_buffer_ptr;                               //指示本轮使用的缓冲区，0:缓冲区1，1:缓冲区2
+logic [8:0]     im_in_data_ptr;                                 //指示本轮计算从第几个图像开始，从0开始计数。
+logic [6:0]     im_in_data_size;                                //指示本轮计算图像个数
+logic           im_in_data_valid;                               //指示图像数据是否有效
+//数据流动阶段指示
+//阶段1：para装填数据，ping装填数据
+logic [7:0]     cur_dataflow_stage                              //当前数据流动阶段
+logic           cs_err_comb                                     //当前数据流动阶段（组合逻辑）
 //错误码置位
 always_ff @(posedge gating_clk)begin
     if(core_rst_n_2 == 1'b0)begin
@@ -112,7 +114,7 @@ always_ff @(posedge gating_clk)begin
             error_code.im_in_err[1] <= 1'b1;
         end
         error_code.batch_mgr_err <= batch_mgr_error_code;
-    end
+        cs_err <= cs_err_comb;
 end
 
 //para sram有效指示
@@ -205,8 +207,11 @@ end
 //二段
 always_comb begin
     main_ns = main_cs;
+    cur_dataflow_stage = '1;
+    cs_err_comb = 1'b0;
     case(main_cs)
         MAIN_IDLE:begin
+            cur_dataflow_stage = 8'd1;
             if(para_load == 1'b0) begin
                 main_ns = MAIN_1_P_IN;
             end
@@ -215,20 +220,27 @@ always_comb begin
             end
         end
         MAIN_1_P_IN:begin
+            cur_dataflow_stage = 8'd1;
             main_ns = MAIN_1_BITCH_ROUTING;
         end
         MAIN_1_BITCH_ROUTING:begin
+            cur_dataflow_stage = 8'd1;
             if(im_in_data_valid == 1'b1) begin
                 main_ns = MAIN_1_IM_IN;
             end
         end
         MAIN_1_IM_IN:begin
+            cur_dataflow_stage = 8'd1;
             main_ns = MAIN_1_IM_IN2;
         end
         MAIN_1_IM_IN2:begin
+            cur_dataflow_stage = 8'd1;
             if(para_sram_ok == 1'b1 && ping1_sram_ok)begin
                 main_ns = MAIN_2;
             end
+        end
+        default:begin
+            cs_err_comb = 1'b1;
         end
     endcase
 end
