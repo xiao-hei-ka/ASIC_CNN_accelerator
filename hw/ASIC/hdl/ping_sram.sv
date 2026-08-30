@@ -16,6 +16,7 @@ logic [127:0] ping_dout [0:SRAM_CNT-1];// 输出数据
 logic [SRAM_CNT-1 : 0] spare_q;//冗余列输出，不接逻辑，单纯放在这防止综合器错误优化sram仿真模型
 logic [SRAM_CNT-1 : 0] ping_cs_final;//最终落实到单片SRAM的片选
 logic [7 : 0] ping_addr_final;//最终落实到单片SRAM的ADDR
+logic [3 : 0] ping_dout_bank;//与SRAM读时与读出数据过程并肩前行的片选信号，以此保证即使在数据输出的时候下一拍数据已经进入并且是写入其他SRAM片，本输出也能按照正确的SRAM输出。
 
 assign ping_addr_final = ping_addr[7:0];
 
@@ -26,8 +27,11 @@ always_comb begin//decoder
 end
 
 always_ff @(posedge clk)begin//mux
-    for(int i = 0; i<SRAM_CNT; i++)begin
-        if(ping_addr[11: 8] == i)begin
+    if(ping_cs == 1'b0 && ping_wr == 1'b1)begin
+        ping_dout_bank <= ping_addr[11:8];
+    end
+    for(int unsigned i = 0; i<SRAM_CNT; i++)begin
+        if(ping_dout_bank == 4'(i))begin
             ping_dout_final <= ping_dout[i];
         end
     end

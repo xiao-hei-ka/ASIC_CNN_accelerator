@@ -104,3 +104,5 @@ Thumbs.db
 
 # 模型文件目录
 models/
+
+.codex-remote-attachments/

@@ -5,7 +5,7 @@ MEM_SIZE=2097152
 MODULE_NAME="u-dma-buf"
 
 # "=== 1. 检查系统是否已安装 $MODULE_NAME 驱动 ==="
-if ！ modinfo $MODULE_NAME > /dev/null 2>&1; then
+if ! modinfo $MODULE_NAME > /dev/null 2>&1; then
     echo " 系统未安装udmabuf驱动，开始自动编译安装..."
     
     # 1. 安装编译依赖

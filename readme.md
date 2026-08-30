@@ -10,7 +10,10 @@
 
 ## ASIC微架构图示
 
-- ![微架构图示](doc/微架构图示.png)
+- ![微架构图示](doc/微架构图示/微架构图示.png)
+
+## 脉动数据流图示
+- ![脉动数据流图示](doc/脉动数据流固化/脉动数据流固化.jpeg)
 
 ## 详细设计报告
 - [detailed design.md](doc/detailed_design.md)

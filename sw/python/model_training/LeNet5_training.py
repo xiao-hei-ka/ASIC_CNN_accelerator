@@ -4,15 +4,13 @@ import torch.optim as optim  # 优化器模块（用于更新网络权重）
 from torch.utils.data import Dataset, DataLoader  # 数据加载工具
 import numpy as np  # 用于处理numpy数组
 import os
+import json
 from torch.ao.quantization import QuantStub, DeQuantStub  # 量化入口/出口
 from torch.ao.quantization import QConfig
 from torch.ao.quantization.observer import (
     MovingAverageMinMaxObserver,
     MovingAveragePerChannelMinMaxObserver,
 )
-import os
-import json
-import numpy as np
 
 # ============================================================
 # 第一部分：数据加载与预处理
@@ -360,8 +358,8 @@ def quantize_model(model, test_loader, device='cpu'):
     torch.backends.quantized.engine = engine
     print(f"使用量化引擎: {engine}")
 
-    # ===== 步骤1：设置量化配置（对称量化，zero_point全为0）=====
-    # 用自定义对称配置替代默认的非对称配置，硬件requantize可省去零点处理
+    # ===== 步骤1：设置权重对称、激活非对称的量化配置 =====
+    # 权重zero_point恒为0；激活zero_point在导出时折入bias。
     model.qconfig = get_symmetric_qconfig()
 
     # ===== 步骤2：准备量化（插入观察器）=====
@@ -428,11 +426,11 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
         'model_name': 'LeNet5',
         'input_shape': [1, 28, 28],    # MNIST图像尺寸
         'num_classes': 10,
+        'activation_dtype': 'uint8',
+        'weight_dtype': 'int8',
+        'weight_layout': '[cout_group][K][cout_lane]',
         'layers': []                    # 每层的详细信息
     }
-    
-    # 记录每层的输出scale（下一层需要用）
-    layer_scales = {}
     
     # ===== 第一步：找到输入量化的scale（网络第一层的输入scale）=====
     # PyTorch量化模型在最开始有个QuantStub，它的输出scale就是输入图像的scale
@@ -477,15 +475,40 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
         weight_int8 = weight_quantized.int_repr().numpy().astype(np.int8)  # 转成numpy的int8数组
         print(f"  权重形状: {weight_int8.shape}")
 
-        # 保存为硬件读取格式：[K][补齐后的输出通道]。
-        weight_flat = weight_int8.reshape(weight_int8.shape[0], -1)
-        padded_out_channels = ((weight_flat.shape[0] + 7) // 8) * 8
-        weight_hw = np.zeros((weight_flat.shape[1], padded_out_channels), dtype=np.int8)
-        weight_hw[:, :weight_flat.shape[0]] = weight_flat.T
+        # 固化为硬件取数顺序：[cout_group][K][cout_lane]。
+        # 卷积层K顺序为(卷积核行, 卷积核列, 输入通道)；FC1层K顺序
+        # 为(特征图行, 特征图列, 输入通道)，以匹配SRAM中的HWC激活布局。
+        out_channels = weight_int8.shape[0]
+        if layer_type == 'conv2d':
+            weight_flat_hw = weight_int8.transpose(0, 2, 3, 1).reshape(out_channels, -1)
+            weight_k_order = '(kernel_y,kernel_x,cin)'
+        elif name == 'fc1':
+            weight_flat_hw = weight_int8.reshape(out_channels, 16, 4, 4) \
+                                          .transpose(0, 2, 3, 1) \
+                                          .reshape(out_channels, -1)
+            weight_k_order = '(y,x,cin)'
+        else:
+            weight_flat_hw = weight_int8.reshape(out_channels, -1)
+            weight_k_order = '(input_neuron)'
+
+        padded_out_channels = ((out_channels + 7) // 8) * 8
+        weight_padded = np.zeros(
+            (padded_out_channels, weight_flat_hw.shape[1]), dtype=np.int8
+        )
+        weight_padded[:out_channels] = weight_flat_hw
+        weight_hw = weight_padded.reshape(
+            padded_out_channels // 8, 8, weight_flat_hw.shape[1]
+        ).transpose(0, 2, 1).copy()
+
+        # 导出前立即反解一次，防止reshape/transpose写错但文件仍能生成。
+        weight_roundtrip = weight_hw.transpose(0, 2, 1) \
+                                    .reshape(padded_out_channels, -1)[:out_channels]
+        if not np.array_equal(weight_roundtrip, weight_flat_hw):
+            raise RuntimeError(f'{name}权重布局往返检查失败')
         
         # ----- 2.2 提取权重的scale和zero_point -----
-        # PyTorch的fbgemm对卷积用per-channel量化（每个输出通道一个scale）
-        # 对全连接用per-tensor量化（整个权重矩阵一个scale）
+        # 当前QConfig要求权重采用per-channel对称量化。这里仍按实际qscheme
+        # 分支读取，避免模型配置变化后静默导出错误参数。
         if weight_quantized.qscheme() in (torch.per_channel_affine, torch.per_channel_symmetric):
             # per-channel: 每个输出通道有独立的scale
             weight_scales = weight_quantized.q_per_channel_scales().numpy()
@@ -496,6 +519,11 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
             weight_scales = np.array([weight_quantized.q_scale()])
             weight_zero_points = np.array([weight_quantized.q_zero_point()]).astype(np.int32)
             print(f"  权重量化: per-tensor")
+
+        if np.any(weight_zero_points != 0):
+            raise RuntimeError(f'{name}权重不是对称量化，硬件不支持非零权重零点')
+        if weight_scales.size != out_channels:
+            raise RuntimeError(f'{name}权重没有按输出通道进行per-channel量化')
         
         # ----- 2.3 提取偏置，并把输入zero_point折进去 -----
         # 权重对称(Zw=0)后，真值 = Sw·Sx·[Σ(w·x) - Zx·Σw] + bias_fp
@@ -515,6 +543,9 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
 
         # 折叠：bias_int - Zx·Σw
         bias_int32 = bias_int32 - int(current_input_zero_point) * weight_sum_per_out
+        if np.any(bias_int32 < np.iinfo(np.int32).min) or \
+                np.any(bias_int32 > np.iinfo(np.int32).max):
+            raise RuntimeError(f'{name}偏置折叠后超出int32范围')
         bias_int32 = bias_int32.astype(np.int32)
         print(f"  偏置形状: {bias_int32.shape}（已量化并折入输入零点）")
         
@@ -548,6 +579,14 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
         weight_hw.astype('<i1').tofile(os.path.join(output_dir, weight_filename))
         bias_int32.astype('<i4').tofile(os.path.join(output_dir, bias_filename))
 
+        expected_weight_bytes = padded_out_channels * weight_flat_hw.shape[1]
+        weight_file_path = os.path.join(output_dir, weight_filename)
+        bias_file_path = os.path.join(output_dir, bias_filename)
+        if os.path.getsize(weight_file_path) != expected_weight_bytes:
+            raise RuntimeError(f'{name}权重文件大小错误')
+        if os.path.getsize(bias_file_path) != bias_int32.size * 4:
+            raise RuntimeError(f'{name}偏置文件大小错误')
+
         
         print(f"  已保存: {weight_filename} ({weight_hw.nbytes} bytes)")
         print(f"  已保存: {bias_filename} ({bias_int32.nbytes} bytes)")
@@ -561,10 +600,14 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
             'bias_file': bias_filename,
             'weight_shape': list(weight_int8.shape),  # [out_ch, in_ch, kh, kw] for conv
             'bias_shape': list(bias_int32.shape),
+            'weight_layout': '[cout_group][K][cout_lane]',
+            'weight_k_order': weight_k_order,
+            'padded_out_channels': padded_out_channels,
             
             # 量化参数
             'input_scale': float(current_input_scale),
-            'input_zero_point': 0,  # 通常ReLU后输出是uint8，zero_point=0
+            'input_zero_point': int(current_input_zero_point),
+            'input_zero_point_folded_into_bias': True,
             'weight_scales': weight_scales.tolist(),
             'weight_zero_points': weight_zero_points.tolist(),
             'output_scale': output_scale,
@@ -590,8 +633,8 @@ def export_for_hardware(model_quantized, output_dir='data/models/hardware'):
     
     # ===== 第三步：保存JSON配置文件 =====
     json_filename = os.path.join(output_dir, 'model_config.json')
-    with open(json_filename, 'w') as f:
-        json.dump(model_config, f, indent=2)
+    with open(json_filename, 'w', encoding='utf-8') as f:
+        json.dump(model_config, f, indent=2, ensure_ascii=False)
     
     print(f"\n✓ 配置文件已保存: {json_filename}")
     print(f"✓ 共导出 {layer_count} 层")
@@ -650,9 +693,10 @@ def main():
     """主函数 - 执行完整流程"""
 
     # ===== 统一的模型输出目录 =====
-    # 所有生成的模型文件都放在 data/models/ 下
-    # 这样在项目根目录写 .gitignore 忽略 data/ 即可避免模型占用仓库空间
-    MODELS_DIR = '../../../models'
+    # 路径以脚本自身为基准，避免从不同工作目录启动时写到错误位置。
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, '..', '..', '..'))
+    MODELS_DIR = os.path.join(project_root, 'models')
     os.makedirs(MODELS_DIR, exist_ok=True)
 
     # 各文件的完整路径
@@ -669,7 +713,8 @@ def main():
     # ===== 阶段1：加载数据 =====
     print("\n[1/4] 加载MNIST数据...")
     # 这里x_表示图像，y_表示标签。
-    x_train, y_train, x_test, y_test = load_mnist('data/MNIST/mnist.npz')
+    mnist_path = os.path.join(script_dir, 'data', 'MNIST', 'mnist.npz')
+    x_train, y_train, x_test, y_test = load_mnist(mnist_path)
 
     # 创建Dataset对象
     train_dataset = MNISTDataset(x_train, y_train)
@@ -697,7 +742,7 @@ def main():
     model = LeNet5()
     print(model)  # 打印网络结构
 
-    # 训练模型（save_path指向data/models目录）
+    # 训练模型（save_path指向项目models目录）
     best_acc = train_model(
         model,
         train_loader,
@@ -728,13 +773,13 @@ def main():
 
     # ===== 完成总结 =====
     print("\n" + "=" * 50)
-    print("✓ 完成！生成的文件（全部在 data/models/ 下）:")
+    print("✓ 完成！生成的文件（全部在项目models目录下）:")
     print(f"  - {float_model_path}: 浮点模型权重 (FP32)")
     print(f"  - {quant_model_path}: INT8量化模型 (PyTorch格式)")
     print(f"  - {hardware_dir}/model_config.json: 硬件配置文件")
     print(f"  - {hardware_dir}/*.bin: 各层权重和偏置的二进制文件")
     print("=" * 50)
-    print("\n提示：在项目根目录的 .gitignore 中加入一行 'data/' 即可忽略所有模型文件")
+    print("\n提示：项目根目录的.gitignore已忽略models目录")
 
 
 # ============================================================
